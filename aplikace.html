@@ -118,6 +118,7 @@ footer{margin-top:32px;color:var(--muted);font-size:13px;max-width:75ch}
 .ema-k{font-size:13px;color:var(--muted);font-weight:700}
 .ema-src{display:inline-block;margin-top:8px;color:var(--accent);font-size:14px}
 .fyto{background:transparent}.fyto .ema-src{color:var(--muted)}
+.ph .ema-r>div:last-child{white-space:pre-line}.ph .ema-src{color:var(--muted)}
 details.fld summary{cursor:pointer;color:var(--accent);font-weight:700;margin:6px 0}
 @media (max-width:560px){.ema-r{grid-template-columns:1fr}}
 .mono-part{margin:22px 0 4px;font:700 12px/1 var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--paper);background:var(--accent);display:inline-block;padding:6px 10px;border-radius:6px}
@@ -339,6 +340,9 @@ const para=t=>t?`<p>${esc(t)}</p>`:'';
 const fytoBox=x=>{if(!x.fytoUcinky&&!x.fytoPouziti&&!x.fytoUpozorneni)return '';
   const row=(k,v)=>v?`<div class="ema-r"><div class="ema-k">${k}</div><div>${esc(v)}</div></div>`:'';
   return `<section class="sec ema fyto"><h3>Z knihy Fytoterapia (MUDr. Karol Mika)</h3>${row('Účinky',x.fytoUcinky)}${row('Použití a dávkování',x.fytoPouziti)}${row('Upozornění',x.fytoUpozorneni)}${x.fytoZdroj?`<div class="ema-src">Zdroj: ${esc(x.fytoZdroj)}</div>`:''}</section>`};
+const phBox=(x,rec)=>{if(!x.phDukazy&&!x.phBezpecnost&&!x.phPouziti)return '';
+  const row=(k,v)=>v?`<div class="ema-r"><div class="ema-k">${k}</div><div>${esc(v)}</div></div>`:'';
+  return `<section class="sec ema ph"><h3>${rec?'Důkazy a bezpečnost složek (Phytopharmacy)':'Z knihy Phytopharmacy (důkazy z výzkumu)'}</h3>${row('Použití',x.phPouziti)}${row(rec?'Co říkají studie o bylinách v receptu':'Co říkají studie',x.phDukazy)}${row('Bezpečnost a interakce',x.phBezpecnost)}${row('Dávkování v knize',x.phDavkovani)}${x.phZdroj?`<div class="ema-src">Zdroj: ${esc(x.phZdroj)}</div>`:''}</section>`};
 const emaBox=x=>{if(!x.emaStatus&&!x.emaIndications)return '';
   const row=(k,v)=>v?`<div class="ema-r"><div class="ema-k">${k}</div><div>${esc(v)}</div></div>`:'';
   return `<section class="sec ema"><h3>Evropská monografie (EMA)</h3>${x.emaStatus?`<div class="ema-st">${esc(x.emaStatus)}</div>`:''}
@@ -383,7 +387,7 @@ function renderSheet(){
     h=`${back}<div class="eyebrow">Bylina</div><h2>${esc(x.name)}</h2>${x.latin?`<div class="latin">${esc(x.latin)}</div>`:''}
       <div class="meta">${x.part?`<span>Používá se: <b>${esc(x.part)}</b></span>`:''}${x.season?`<span>Sběr: <b>${esc(x.season)}</b></span>`:''}</div>
       ${sec('Pomáhá při',chipsOf(ail,'ailments','a'))}${sec('Účinky',para(x.effects))}${sec('Jak se používá',para(x.use))}
-      ${x.warning?sec('Upozornění',`<div class="note">${esc(x.warning)}</div>`):''}${sec('Recepty s touto bylinou',chipsOf(recipesForHerb(x.id),'recipes','r'))}${sec('Monografie Dr. Svátek',chipsOf(monoForHerb(x.id),'monographs'))}${fytoBox(x)}${emaBox(x)}`;
+      ${x.warning?sec('Upozornění',`<div class="note">${esc(x.warning)}</div>`):''}${sec('Recepty s touto bylinou',chipsOf(recipesForHerb(x.id),'recipes','r'))}${sec('Monografie Dr. Svátek',chipsOf(monoForHerb(x.id),'monographs'))}${phBox(x)}${fytoBox(x)}${emaBox(x)}`;
   } else if(sel.type==='ailments'){
     h=`${back}<div class="eyebrow">Obtíž · ${esc(areaOf(x))}</div><h2>${esc(x.name)}</h2>
       ${sec('Popis',para(x.description))}${sec('Recepty',chipsOf(recipesForAilment(x.id),'recipes','r'))}
@@ -396,7 +400,7 @@ function renderSheet(){
       ${sec('Na obtíže',chipsOf(ail,'ailments','a'))}${recipeCalc(x)}
       ${sec('Postup',st.length?`<ol class="steps">${st.map(s=>`<li>${esc(s.replace(/^\d+[.)]\s*/,''))}</li>`).join('')}</ol>`:'')}
       ${sec('Dávkování',para(x.dosage))}${x.warning?sec('Upozornění',`<div class="note">${esc(x.warning)}</div>`):''}${x.internal?sec('Interní poznámka · netiskne se ani neposílá',`<div class="internal">${esc(x.internal)}</div>`):''}
-      ${sec('Byliny v receptu',chipsOf(recipeHerbs(x),'herbs'))}${shareBox()}`;
+      ${sec('Byliny v receptu',chipsOf(recipeHerbs(x),'herbs'))}${phBox(x,1)}${shareBox()}`;
   } else if(sel.type==='guides'){
     const ch=guideChapters(x.guide), i=ch.findIndex(c=>c.id===x.id), pv=ch[i-1], nx=ch[i+1];
     const nav=`<div class="gnav">${pv?`<button class="btn ghost" data-open="guides:${esc(pv.id)}">← ${esc(pv.name)}</button>`:'<span></span>'}${nx?`<button class="btn ghost" data-open="guides:${esc(nx.id)}">${esc(nx.name)} →</button>`:''}</div>`;
@@ -599,6 +603,7 @@ function openForm(type,x,presetArea){
     ${pick('ailmentIds','Pomáhá při obtížích',S.ailments,v.ailmentIds)}
     ${f('effects','Účinky',v.effects,{area:1})}${f('use','Jak se používá',v.use,{area:1})}${f('warning','Upozornění a kontraindikace',v.warning,{area:1})}
     <details class="fld"><summary>Z knihy Fytoterapia (MUDr. Mika)</summary>${f('fytoUcinky','Účinky',v.fytoUcinky,{area:1})}${f('fytoPouziti','Použití a dávkování',v.fytoPouziti,{area:1})}${f('fytoUpozorneni','Upozornění',v.fytoUpozorneni,{area:1})}${f('fytoZdroj','Zdroj',v.fytoZdroj)}</details>
+    <details class="fld"><summary>Z knihy Phytopharmacy</summary>${f('phPouziti','Použití',v.phPouziti,{area:1})}${f('phDukazy','Co říkají studie',v.phDukazy,{area:1})}${f('phBezpecnost','Bezpečnost a interakce',v.phBezpecnost,{area:1})}${f('phDavkovani','Dávkování v knize',v.phDavkovani,{area:1})}${f('phZdroj','Zdroj',v.phZdroj)}</details>
     <details class="fld"><summary>Evropská monografie (EMA)</summary>${f('emaStatus','Stav monografie',v.emaStatus)}${f('emaIndications','Schválené použití',v.emaIndications,{area:1})}${f('emaDosage','Dávkování podle monografie',v.emaDosage,{area:1})}${f('emaSafety','Bezpečnost',v.emaSafety,{area:1})}${f('emaUrl','Odkaz na monografii',v.emaUrl)}</details>`;
   } else if(type==='guides'){
     body=`<div class="row2">${f('name','Název kapitoly',v.name)}${f('guide','Průvodce',v.guide||S.guide||'',{ph:'Perimenopauza'})}</div>
@@ -627,7 +632,8 @@ function openForm(type,x,presetArea){
       <div id="ings">${ings.map(ingRow).join('')}</div><div><button type="button" class="btn" id="add-ing">+ Surovina</button></div>
       <datalist id="dl-herbs">${[...S.herbs.values()].sort(byName).map(h=>`<option value="${esc(h.name)}">`).join('')}</datalist></div>
     <div class="row2">${f('temp','Teplota vody',v.temp,{ph:'100 °C'})}${f('time','Louhování / vaření',v.time,{ph:'10 min přikryté'})}</div>
-    ${f('yield','Dávka / výtěžek',v.yield,{ph:'3 g směsi na šálek (250 ml)'})}${f('steps','Postup',v.steps,{area:1,hint:'Každý krok na nový řádek.'})}${f('dosage','Dávkování',v.dosage,{area:1})}${f('warning','Upozornění',v.warning,{area:1})}${f('internal','Interní poznámka (netiskne se ani neposílá)',v.internal,{area:1,hint:'Ceny, prodejnost, původní název…'})}`;
+    ${f('yield','Dávka / výtěžek',v.yield,{ph:'3 g směsi na šálek (250 ml)'})}${f('steps','Postup',v.steps,{area:1,hint:'Každý krok na nový řádek.'})}${f('dosage','Dávkování',v.dosage,{area:1})}${f('warning','Upozornění',v.warning,{area:1})}${f('internal','Interní poznámka (netiskne se ani neposílá)',v.internal,{area:1,hint:'Ceny, prodejnost, původní název…'})}
+    <details class="fld"><summary>Z knihy Phytopharmacy</summary>${f('phDukazy','Co říkají studie o bylinách',v.phDukazy,{area:1})}${f('phBezpecnost','Bezpečnost a interakce',v.phBezpecnost,{area:1})}${f('phZdroj','Zdroj',v.phZdroj)}</details>`;
   }
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<form class="form" novalidate><h2>${x?'Upravit: '+esc(v.name):T.add}</h2>${body}<div class="formbar"><span class="err" id="f-err"></span><button type="button" class="btn ghost" data-close>Zrušit</button><button class="btn primary" type="submit">Uložit</button></div></form>`;
@@ -647,7 +653,7 @@ function openForm(type,x,presetArea){
     const data={name:g('name')};
     if(!data.name){ov.querySelector('#f-err').textContent='Vyplňte název.';return}
     const picked=id=>[...form.querySelectorAll(`[data-pick="${id}"] .chip[aria-pressed="true"]`)].map(c=>c.dataset.id);
-    if(type==='herbs')Object.assign(data,{latin:g('latin'),part:g('part'),season:g('season'),effects:g('effects'),use:g('use'),warning:g('warning'),ailmentIds:picked('ailmentIds'),emaStatus:g('emaStatus'),fytoUcinky:g('fytoUcinky'),fytoPouziti:g('fytoPouziti'),fytoUpozorneni:g('fytoUpozorneni'),fytoZdroj:g('fytoZdroj'),emaIndications:g('emaIndications'),emaDosage:g('emaDosage'),emaSafety:g('emaSafety'),emaUrl:g('emaUrl')});
+    if(type==='herbs')Object.assign(data,{latin:g('latin'),part:g('part'),season:g('season'),effects:g('effects'),use:g('use'),warning:g('warning'),ailmentIds:picked('ailmentIds'),emaStatus:g('emaStatus'),fytoUcinky:g('fytoUcinky'),fytoPouziti:g('fytoPouziti'),fytoUpozorneni:g('fytoUpozorneni'),fytoZdroj:g('fytoZdroj'),phPouziti:g('phPouziti'),phDukazy:g('phDukazy'),phBezpecnost:g('phBezpecnost'),phDavkovani:g('phDavkovani'),phZdroj:g('phZdroj'),emaIndications:g('emaIndications'),emaDosage:g('emaDosage'),emaSafety:g('emaSafety'),emaUrl:g('emaUrl')});
     else if(type==='ailments')Object.assign(data,{category:g('category'),description:g('description'),doctor:g('doctor')});
     else if(type==='leaflets')Object.assign(data,{category:g('category'),summary:g('summary'),text:g('text'),url:g('url')});
     else if(type==='guides')Object.assign(data,{guide:g('guide'),area:g('category'),part:g('part'),order:g('order'),text:form.querySelector('#f-text').value.trim()});
@@ -657,7 +663,7 @@ function openForm(type,x,presetArea){
       const ingredients=[...form.querySelectorAll('.ingrow')].map(r=>{const [n,a,u]=r.querySelectorAll('input,select');const name=n.value.trim();if(!name)return null;
         const amt=parseFloat(String(a.value).replace(',','.'));const o={name,unit:u.value};if(isFinite(amt))o.amount=amt;const hid=byN.get(norm(name));if(hid)o.herbId=hid;return o}).filter(Boolean);
       const ba=parseFloat(g('baseAmount').replace(',','.'));
-      Object.assign(data,{category:g('category'),ailmentIds:picked('ailmentIds'),ingredients,baseAmount:isFinite(ba)?ba:0,baseUnit:g('baseUnit'),temp:g('temp'),time:g('time'),yield:g('yield'),steps:g('steps'),dosage:g('dosage'),warning:g('warning'),description:g('description'),internal:g('internal')});
+      Object.assign(data,{category:g('category'),ailmentIds:picked('ailmentIds'),ingredients,baseAmount:isFinite(ba)?ba:0,baseUnit:g('baseUnit'),temp:g('temp'),time:g('time'),yield:g('yield'),steps:g('steps'),dosage:g('dosage'),warning:g('warning'),description:g('description'),internal:g('internal'),phDukazy:g('phDukazy'),phBezpecnost:g('phBezpecnost'),phZdroj:g('phZdroj')});
     }
     const btn=form.querySelector('[type=submit]');btn.disabled=true;btn.textContent='Ukládám…';
     try{
