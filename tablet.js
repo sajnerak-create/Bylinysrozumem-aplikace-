@@ -90,27 +90,46 @@
     return new Promise(function (res, rej) {
       var cb = '__bsrG' + (++jsonpN) + '_' + Date.now();
       var sc = document.createElement('script');
-      var t = setTimeout(function () { done(); rej(new Error('Tabulka neodpověděla včas.')); }, ms || 60000);
+      var t = setTimeout(function () { done(); rej(new Error('Tabulka neodpověděla včas.')); }, 25000);
       function done() { clearTimeout(t); try { delete window[cb]; } catch (e) { window[cb] = undefined; } sc.remove(); }
-      window[cb] = function (r) {
-        done();
-        if (!r || r.status === 'error') { res(null); return; }
-        var cols = r.table.cols.map(function (c) { return String(c.label || '').trim(); });
-        var rows = [cols].concat(r.table.rows.map(function (row) {
-          return (row.c || []).map(function (c) { return c && c.v != null ? c.v : ''; });
-        }));
-        res({ name: name, rows: rows });
-      };
-      sc.onerror = function () { done(); rej(new Error('Nepodařilo se spojit s tabulkou.')); };
-      sc.src = 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(key) + '/gviz/tq?headers=1&tqx=responseHandler:' + cb +
-        '&sheet=' + encodeURIComponent(name) + '&t=' + Date.now();
+      window[cb] = function (r) { done(); res(zGviz(name, r)); };
+      sc.onerror = function () { done(); rej(new Error('Záložní spojení s tabulkou selhalo.')); };
+      sc.src = gvizUrl(name, '&tqx=responseHandler:' + cb);
       document.head.appendChild(sc);
     });
   }
+  function gvizUrl(name, extra) {
+    return 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(TABULKA) + '/gviz/tq?headers=1' + extra +
+      '&sheet=' + encodeURIComponent(name) + '&t=' + Date.now();
+  }
+  function zGviz(name, r) {
+    if (!r || r.status === 'error' || !r.table) return null;
+    var cols = r.table.cols.map(function (c) { return String(c.label || '').trim(); });
+    return { name: name, rows: [cols].concat(r.table.rows.map(function (row) {
+      return (row.c || []).map(function (c) { return c && c.v != null ? c.v : ''; });
+    })) };
+  }
+  /* Cesta 2: list po listu přes fetch (Google u tohoto rozhraní stahování z jiných stránek povoluje). */
+  function gvizFetch(name, ms) {
+    var ctl = window.AbortController ? new AbortController() : null;
+    var t = ctl && setTimeout(function () { ctl.abort(); }, ms || 60000);
+    return fetch(gvizUrl(name, '&tqx=out:json'), { signal: ctl && ctl.signal, cache: 'no-store', credentials: 'omit' })
+      .then(function (r) { return r.text(); })
+      .then(function (txt) {
+        var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+        if (a < 0 || b < a) throw new Error('Tabulka není sdílená pro „Kdokoli, kdo má odkaz“.');
+        return zGviz(name, JSON.parse(txt.slice(a, b + 1)));
+      })
+      .finally(function () { if (t) clearTimeout(t); });
+  }
   function stahnoutGviz(ms) {
-    return Promise.all(LISTY.map(function (n) { return gvizList(TABULKA, n, ms); })).then(function (listy) {
-      return listy.filter(Boolean);
-    });
+    return Promise.all(LISTY.map(function (n) { return gvizFetch(n, ms); }))
+      .catch(function (e2) {
+        return Promise.all(LISTY.map(function (n) { return gvizList(TABULKA, n, ms); })).catch(function (e3) {
+          throw new Error((e2 && e2.message || e2) + ' / ' + (e3 && e3.message || e3));
+        });
+      })
+      .then(function (listy) { return listy.filter(Boolean); });
   }
 
   function zTabulky(listy) {
@@ -170,15 +189,19 @@
 
   function stahnoutPrimo(ms) {
     if (navigator.onLine === false) return Promise.reject(new Error('Tablet je bez internetu.'));
-    var p = ZDROJ ? stahnoutXlsx(ms) : Promise.reject(new Error('Chybí odkaz na tabulku.'));
-    if (TABULKA) p = p.catch(function (e1) {
-      return stahnoutGviz(ms).catch(function (e2) { throw new Error(e1.message + ' Ani záložní cesta nefungovala: ' + e2.message); });
-    });
-    return p.then(function (listy) {
-      var data = zTabulky(listy);
-      if (!data.herbs && !data.recipes) throw new Error('Z tabulky se nepodařilo přečíst listy Byliny a Recepty.');
-      return { verze: otisk(JSON.stringify(data)), data: data };
-    });
+    var cesty = [];
+    if (TABULKA) cesty.push(stahnoutGviz);
+    if (ZDROJ) cesty.push(stahnoutXlsx);
+    var chyby = [];
+    var zkus = function (i) {
+      if (i >= cesty.length) return Promise.reject(new Error(chyby.join(' | ') || 'Chybí odkaz na tabulku.'));
+      return cesty[i](ms).then(function (listy) {
+        var data = zTabulky(listy);
+        if (!data.herbs && !data.recipes) throw new Error('Z tabulky se nepodařilo přečíst listy Byliny a Recepty.');
+        return data;
+      }).catch(function (e) { chyby.push((e && e.message) || String(e)); return zkus(i + 1); });
+    };
+    return zkus(0).then(function (data) { return { verze: otisk(JSON.stringify(data)), data: data }; });
   }
 
   /** Stáhne data; vrátí {zmena:true/false, data}. Uloží je do tabletu. */
