@@ -19,10 +19,11 @@
   // Odkaz se do tabletu uloží z adresy …#zdroj=<odkaz> nebo z úvodní obrazovky. V kódu (veřejném) není.
   (function () {
     var h = new URLSearchParams(location.hash.slice(1));
-    if (h.get('zdroj') || h.get('tabulka')) {
+    if (h.get('zdroj') || h.get('tabulka') || h.get('gid')) {
       try {
         if (h.get('zdroj')) localStorage.setItem(K_ZDROJ, JSON.stringify(h.get('zdroj')));
         if (h.get('tabulka')) localStorage.setItem(K_TAB, JSON.stringify(h.get('tabulka')));
+        if (h.get('gid')) { var g = {}; h.get('gid').split(',').forEach(function (x) { var i = x.lastIndexOf(':'); if (i > 0) g[x.slice(0, i)] = x.slice(i + 1); }); localStorage.setItem('bsr-gid', JSON.stringify(g)); }
       } catch (e) {}
       history.replaceState(null, '', location.pathname + location.search);
     }
@@ -145,6 +146,37 @@
       })
       .finally(function () { if (t) clearTimeout(t); });
   }
+  /* Cesta 1: zveřejněná tabulka, list po listu jako CSV (pub?output=csv&sheet=… nebo &gid=…). */
+  var K_GID = 'bsr-gid';
+  function pubCsvUrl(name) {
+    var gids = get(K_GID) || {};
+    var base = ZDROJ.replace(/[?#].*$/, '');
+    var q = gids[name] != null ? 'gid=' + encodeURIComponent(gids[name]) + '&single=true' : 'sheet=' + encodeURIComponent(name);
+    return base + '?' + q + '&output=csv&t=' + Date.now();
+  }
+  function stahnoutPubCsv(ms) {
+    var chyby = [];
+    return Promise.all(LISTY.map(function (name) {
+      var ctl = window.AbortController ? new AbortController() : null;
+      var t = ctl && setTimeout(function () { ctl.abort(); }, ms || 60000);
+      return fetch(pubCsvUrl(name), { signal: ctl && ctl.signal, cache: 'no-store', credentials: 'omit' })
+        .then(function (r) { return r.text().then(function (txt) {
+          if (!r.ok || /^\s*</.test(txt)) { chyby.push(name + ': ' + r.status + ' ' + txt.slice(0, 80).replace(/\s+/g, ' ')); return null; }
+          var rows = zCsv(txt.replace(/^\uFEFF/, ''));
+          if (rows.length) rows[0] = rows[0].map(function (h) { return h.trim(); });
+          return { name: name, rows: rows, txt: txt };
+        }); })
+        .finally(function () { if (t) clearTimeout(t); });
+    })).then(function (listy) {
+      listy = listy.filter(Boolean);
+      var ruzne = {};
+      listy.forEach(function (l) { ruzne[l.txt.slice(0, 300)] = 1; });
+      if (listy.length > 1 && Object.keys(ruzne).length === 1) throw new Error('Zveřejněná tabulka vrací pro všechny listy stejná data.');
+      if (!listy.length) throw new Error('Zveřejněná tabulka: ' + chyby.slice(0, 2).join(' / '));
+      return listy.map(function (l) { return { name: l.name, rows: l.rows }; });
+    });
+  }
+
   function stahnoutGviz(ms) {
     gvizFetch.chyby = [];
     return Promise.all(LISTY.map(function (n) { return gvizFetch(n, ms); }))
@@ -219,6 +251,7 @@
   function stahnoutPrimo(ms) {
     if (navigator.onLine === false) return Promise.reject(new Error('Tablet je bez internetu.'));
     var cesty = [];
+    if (ZDROJ) cesty.push(stahnoutPubCsv);
     if (TABULKA) cesty.push(stahnoutGviz);
     if (ZDROJ) cesty.push(stahnoutXlsx);
     var chyby = [];
