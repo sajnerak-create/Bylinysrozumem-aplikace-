@@ -133,25 +133,32 @@
     var t = ctl && setTimeout(function () { ctl.abort(); }, ms || 60000);
     return fetch(gvizUrl(name, '&tqx=out:csv'), { signal: ctl && ctl.signal, cache: 'no-store', credentials: 'omit' })
       .then(function (r) {
-        if (!r.ok) { if (r.status === 400 || r.status === 404) return null; throw new Error('Tabulka odpověděla chybou ' + r.status + '.'); }
         return r.text().then(function (txt) {
-          if (/^\s*</.test(txt)) throw new Error('Tabulka není sdílená pro „Kdokoli, kdo má odkaz“.');
-          var rows = zCsv(txt);
+          var ukazka = name + ': ' + r.status + ' ' + txt.slice(0, 120).replace(/\s+/g, ' ');
+          if (!r.ok || /^\s*</.test(txt)) { gvizFetch.chyby.push(ukazka); return null; }
+          var rows = zCsv(txt.replace(/^\uFEFF/, ''));
           if (!rows.length) return null;
-          rows[0] = rows[0].map(function (h) { return h.trim(); });
+          rows[0] = rows[0].map(function (h) { return h.replace(/^\uFEFF/, '').trim(); });
+          if (rows[0][0] !== 'id') gvizFetch.chyby.push(ukazka);
           return { name: name, rows: rows };
         });
       })
       .finally(function () { if (t) clearTimeout(t); });
   }
   function stahnoutGviz(ms) {
+    gvizFetch.chyby = [];
     return Promise.all(LISTY.map(function (n) { return gvizFetch(n, ms); }))
       .catch(function (e2) {
         return Promise.all(LISTY.map(function (n) { return gvizList(TABULKA, n, ms); })).catch(function (e3) {
           throw new Error((e2 && e2.message || e2) + ' / ' + (e3 && e3.message || e3));
         });
       })
-      .then(function (listy) { return listy.filter(Boolean); });
+      .then(function (listy) {
+        listy = listy.filter(Boolean);
+        var ok = listy.some(function (l) { return l.rows[0] && l.rows[0][0] === 'id'; });
+        if (!ok && gvizFetch.chyby.length) throw new Error('Odpověď tabulky: ' + gvizFetch.chyby.slice(0, 2).join(' / '));
+        return listy;
+      });
   }
 
   function zTabulky(listy) {
