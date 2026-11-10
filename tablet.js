@@ -346,7 +346,14 @@
     put(K_CFG, { url: h.get('nastavit'), klic: h.get('klic') });
     history.replaceState(null, '', location.pathname + location.search);
   }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+  if ('serviceWorker' in navigator) {
+    var mel = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(function () {});
+    // Nová verze aplikace převzala řízení: jednou obnovit, ať běží nová.
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (mel && !sessionStorage.getItem('bsr-obnoveno')) { try { sessionStorage.setItem('bsr-obnoveno', '1'); } catch (e) {} location.reload(); }
+    });
+  }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
 
   var PRIDAT = '<script>window.BSR_UI=1;(' + BSR.toString() + ')()<\/script>' +
