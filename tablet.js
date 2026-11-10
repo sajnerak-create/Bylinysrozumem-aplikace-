@@ -15,17 +15,21 @@
    * Když ho tablet má uložený, tablet čte tabulku napřímo a nepotřebuje Apps Script ani klíč.
    * E-mail pak připraví v poštovní aplikaci tabletu a PDF vytvoří přes tisk v tabletu.
    */
-  var K_ZDROJ = 'bsr-zdroj';
+  var K_ZDROJ = 'bsr-zdroj', K_TAB = 'bsr-tabulka';
   // Odkaz se do tabletu uloží z adresy …#zdroj=<odkaz> nebo z úvodní obrazovky. V kódu (veřejném) není.
   (function () {
     var h = new URLSearchParams(location.hash.slice(1));
-    if (h.get('zdroj')) {
-      try { localStorage.setItem(K_ZDROJ, JSON.stringify(h.get('zdroj'))); } catch (e) {}
+    if (h.get('zdroj') || h.get('tabulka')) {
+      try {
+        if (h.get('zdroj')) localStorage.setItem(K_ZDROJ, JSON.stringify(h.get('zdroj')));
+        if (h.get('tabulka')) localStorage.setItem(K_TAB, JSON.stringify(h.get('tabulka')));
+      } catch (e) {}
       history.replaceState(null, '', location.pathname + location.search);
     }
   })();
+  var TABULKA = (function () { try { return JSON.parse(localStorage.getItem(K_TAB) || '""'); } catch (e) { return ''; } })();
   var ZDROJ = (function () { try { return JSON.parse(localStorage.getItem(K_ZDROJ) || '""'); } catch (e) { return ''; } })();
-  var PRIMO = !!ZDROJ;
+  var PRIMO = !!(ZDROJ || TABULKA);
 
   /* ---------- ukládání v tabletu ---------- */
   function get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
@@ -73,10 +77,46 @@
   }
 
   /** Převede sešit na stejná data, jaká dává Apps Script (getAll). */
-  function zTabulky(wb) {
+  function zXlsx(wb) {
+    return wb.SheetNames.map(function (n) {
+      return { name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }) };
+    });
+  }
+
+  /* Záložní cesta bez omezení prohlížeče: listy po jednom přes Google Visualization (JSONP). */
+  var LISTY = ['Obtíže', 'Byliny', 'Recepty', 'Letáky', 'Monografie Dr. Svátek', 'Průvodci', 'Nastavení'];
+  var jsonpN = 0;
+  function gvizList(key, name, ms) {
+    return new Promise(function (res, rej) {
+      var cb = '__bsrG' + (++jsonpN) + '_' + Date.now();
+      var sc = document.createElement('script');
+      var t = setTimeout(function () { done(); rej(new Error('Tabulka neodpověděla včas.')); }, ms || 60000);
+      function done() { clearTimeout(t); try { delete window[cb]; } catch (e) { window[cb] = undefined; } sc.remove(); }
+      window[cb] = function (r) {
+        done();
+        if (!r || r.status === 'error') { res(null); return; }
+        var cols = r.table.cols.map(function (c) { return String(c.label || '').trim(); });
+        var rows = [cols].concat(r.table.rows.map(function (row) {
+          return (row.c || []).map(function (c) { return c && c.v != null ? c.v : ''; });
+        }));
+        res({ name: name, rows: rows });
+      };
+      sc.onerror = function () { done(); rej(new Error('Nepodařilo se spojit s tabulkou.')); };
+      sc.src = 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(key) + '/gviz/tq?headers=1&tqx=responseHandler:' + cb +
+        '&sheet=' + encodeURIComponent(name) + '&t=' + Date.now();
+      document.head.appendChild(sc);
+    });
+  }
+  function stahnoutGviz(ms) {
+    return Promise.all(LISTY.map(function (n) { return gvizList(TABULKA, n, ms); })).then(function (listy) {
+      return listy.filter(Boolean);
+    });
+  }
+
+  function zTabulky(listy) {
     var out = {};
-    wb.SheetNames.forEach(function (n) {
-      var rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' });
+    listy.forEach(function (l) {
+      var n = l.name, rows = l.rows;
       if (!rows.length) return;
       var head = rows[0].map(function (h) { return String(h == null ? '' : h).trim(); });
       if (head[0] !== 'id') return;
@@ -87,6 +127,7 @@
         if (!c) return;
         var vals = rows.map(function (r) { return r[i]; }).filter(function (v) { return v !== '' && v != null; });
         json[c] = JSON_SL[c] || (vals.length > 0 && vals.every(function (v) { return typeof v === 'string' && /^\s*[\[{]/.test(v); }));
+        if (c === 'number' || c === 'order') rows.forEach(function (r) { if (typeof r[i] === 'number' && r[i] === Math.floor(r[i])) r[i] = String(r[i]); });
       });
       out[type] = rows.map(function (r) {
         var rec = {};
@@ -111,8 +152,7 @@
     return (h >>> 0).toString(36) + '-' + str.length;
   }
 
-  function stahnoutPrimo(ms) {
-    if (navigator.onLine === false) return Promise.reject(new Error('Tablet je bez internetu.'));
+  function stahnoutXlsx(ms) {
     var ctl = window.AbortController ? new AbortController() : null;
     var t = ctl && setTimeout(function () { ctl.abort(); }, ms || 90000);
     var url = ZDROJ + (ZDROJ.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
@@ -122,12 +162,23 @@
       if (!r.ok) throw new Error('Tabulka není dostupná (' + r.status + '). Je zveřejněná na webu?');
       return r.arrayBuffer();
     }, function (e) {
-      throw new Error(e && e.name === 'AbortError' ? 'Tabulka neodpověděla včas.' : (e && e.message) || 'Nepodařilo se spojit s tabulkou.');
+      throw new Error(e && e.name === 'AbortError' ? 'Tabulka neodpověděla včas.' : 'Prohlížeč nepustil stažení tabulky (' + ((e && e.message) || e) + ').');
     }).then(function (buf) {
-      var data = zTabulky(XLSX.read(new Uint8Array(buf), { type: 'array' }));
-      if (!data.herbs && !data.recipes) throw new Error('V tabulce nejsou listy Byliny a Recepty.');
-      return { verze: otisk(JSON.stringify(data)), data: data };
+      return zXlsx(XLSX.read(new Uint8Array(buf), { type: 'array' }));
     }).finally(function () { if (t) clearTimeout(t); });
+  }
+
+  function stahnoutPrimo(ms) {
+    if (navigator.onLine === false) return Promise.reject(new Error('Tablet je bez internetu.'));
+    var p = ZDROJ ? stahnoutXlsx(ms) : Promise.reject(new Error('Chybí odkaz na tabulku.'));
+    if (TABULKA) p = p.catch(function (e1) {
+      return stahnoutGviz(ms).catch(function (e2) { throw new Error(e1.message + ' Ani záložní cesta nefungovala: ' + e2.message); });
+    });
+    return p.then(function (listy) {
+      var data = zTabulky(listy);
+      if (!data.herbs && !data.recipes) throw new Error('Z tabulky se nepodařilo přečíst listy Byliny a Recepty.');
+      return { verze: otisk(JSON.stringify(data)), data: data };
+    });
   }
 
   /** Stáhne data; vrátí {zmena:true/false, data}. Uloží je do tabletu. */

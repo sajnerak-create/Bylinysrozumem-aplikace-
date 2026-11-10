@@ -1,5 +1,5 @@
 /* Byliny s rozumem – offline režim. Soubory aplikace a písma se ukládají do tabletu. */
-const CACHE = 'bsr-tablet-v2';
+const CACHE = 'bsr-tablet-v3';
 const FILES = ['./', 'index.html', 'tablet.js', 'aplikace.html', 'xlsx.mini.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 const FONTS = 'https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,500;0,700;1,400;1,500&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap';
 
