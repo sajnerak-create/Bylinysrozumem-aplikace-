@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title>Byliny s rozumem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,500;0,700;1,400;1,500&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: herbář – horní lišta s hledáním a záložkami, vlevo seznam lístků, vpravo otevřený list herbáře */
+:root{
+  --bg:#ffffff; --paper:#ffffff; --ink:#1d5c34; --muted:#4f7f5e; --line:#cfe3d5;
+  --accent:#2e7d46; --accent-soft:#e6f3e9; --ochre:#7a6a1c; --ochre-soft:#f4f1dc;
+  --warn:#8a3b1f; --warn-soft:#fbece5; --shadow:0 1px 2px rgba(29,92,52,.08),0 6px 20px rgba(29,92,52,.06);
+  --f-display:"Alegreya",Georgia,"Times New Roman",serif;
+  --f-body:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+header.top{display:flex;flex-wrap:wrap;align-items:end;gap:12px 24px;justify-content:space-between}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,4vw,38px);line-height:1.05;margin:0;text-wrap:balance}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:15px}
+.search{flex:1 1 320px;max-width:460px;position:relative}
+.search input{width:100%;padding:11px 14px 11px 40px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+nav.tabs{display:flex;gap:6px;margin:20px 0 14px;flex-wrap:wrap;align-items:center}
+.tab{border:1px solid transparent;background:none;padding:8px 14px;border-radius:999px;cursor:pointer;font-weight:500;color:var(--muted);display:flex;gap:8px;align-items:center}
+.tab .n{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.tab[aria-selected="true"] .n{color:var(--paper);opacity:.7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--paper);padding:8px 14px;border-radius:9px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--paper);padding:3px 11px;border-radius:999px;font-size:14px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:500}
+.filters{margin-bottom:14px}
+.filters .chip{font-size:15px;padding:5px 14px}
+.grid{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:20px;align-items:start}
+.list{display:flex;flex-direction:column;gap:6px;min-width:0}
+.item{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:10px 14px;cursor:pointer}
+.item:hover{border-color:var(--accent)}
+.item[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.item .t{font-family:var(--f-display);font-weight:700;font-size:18px}
+.item .s{color:var(--muted);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .s i{font-family:var(--f-display)}
+.grp{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);font-weight:700;margin:12px 0 2px 2px}
+.grp:first-child{margin-top:0}
+.empty{padding:28px 18px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);text-align:center}
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:clamp(18px,3vw,32px);min-width:0;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.sheet h2{font-family:var(--f-display);font-size:clamp(28px,3.4vw,36px);margin:2px 0 0;line-height:1.1;text-wrap:balance}
+.latin{font-family:var(--f-display);font-style:italic;font-size:19px;color:var(--muted)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0 0;color:var(--muted);font-size:14px}
+.meta b{color:var(--ink);font-weight:500}
+.sec{margin-top:22px}
+.sec h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px;font-weight:700}
+.sec p{margin:0;max-width:65ch;white-space:pre-line}
+.link{border:1px solid var(--line);background:var(--bg);padding:4px 12px;border-radius:8px;cursor:pointer;font-size:15px}
+.link:hover{border-color:var(--accent);color:var(--accent)}
+.link.r{background:var(--ochre-soft);border-color:transparent;color:var(--ochre)}
+.link.a{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.note{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:12px 14px;max-width:65ch}
+.note b{display:block;margin-bottom:2px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:26px;padding-top:16px;border-top:1px solid var(--line)}
+.back{display:none}
+/* kalkulačka receptu */
+.calc{background:var(--bg);border-radius:12px;padding:16px;margin-top:18px}
+.calc-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.calc-in{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.calc-in input{width:90px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-family:var(--f-mono);text-align:right}
+.ing{width:100%;border-collapse:collapse;margin-top:12px;font-variant-numeric:tabular-nums}
+.ing td{padding:7px 4px;border-top:1px solid var(--line)}
+.ing td.q{font-family:var(--f-mono);text-align:right;white-space:nowrap;width:1%;padding-right:14px;color:var(--accent);font-weight:500}
+.params{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:14px}
+.param{background:var(--paper);border-radius:9px;padding:9px 12px}
+.param .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.param .v{font-family:var(--f-mono);font-size:17px}
+ol.steps{margin:0;padding-left:22px;max-width:65ch}
+ol.steps li{margin-bottom:6px}
+/* formulář */
+.overlay{position:fixed;inset:0;background:rgba(15,20,16,.45);display:flex;align-items:flex-start;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));overflow:auto;z-index:50}
+.form{background:var(--paper);border-radius:14px;width:100%;max-width:720px;padding:22px clamp(16px,3vw,28px);margin:auto 0;box-shadow:var(--shadow)}
+.form h2{font-family:var(--f-display);margin:0 0 14px;font-size:26px}
+.fld{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.fld label{font-weight:500;font-size:14px}
+.fld .hint{font-size:13px;color:var(--muted)}
+.fld input,.fld select,.fld textarea{padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);width:100%}
+.fld textarea{min-height:76px;resize:vertical}
+.row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 14px}
+.pick{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg)}
+.pick input{margin-bottom:8px}
+.pick .chips{max-height:150px;overflow:auto}
+.ingrow{display:grid;grid-template-columns:minmax(0,1fr) 80px 100px 34px;gap:6px;margin-bottom:6px}
+.ingrow button{border:1px solid var(--line);background:var(--paper);border-radius:8px;cursor:pointer}
+.formbar{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px}
+.err{color:var(--warn);font-size:14px;margin-right:auto;align-self:center}
+.status{font-size:14px;color:var(--muted);margin-top:6px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:999px;font-size:15px;z-index:60}
+footer{margin-top:32px;color:var(--muted);font-size:13px;max-width:75ch}
+@media (max-width:780px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .grid.detail .list,.grid.detail .filters{display:none}
+  .grid:not(.detail) .sheet{display:none}
+  .sheet{position:static}
+  .back{display:inline-flex;margin-bottom:10px}
+}
+.ema{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--accent-soft)}
+.ema h3{margin-top:0}.ema-st{font-weight:700;margin-bottom:8px}
+.ema-r{display:grid;grid-template-columns:150px 1fr;gap:4px 14px;padding:6px 0;border-top:1px solid var(--line)}
+.ema-k{font-size:13px;color:var(--muted);font-weight:700}
+.ema-src{display:inline-block;margin-top:8px;color:var(--accent);font-size:14px}
+.fyto{background:transparent}.fyto .ema-src{color:var(--muted)}
+details.fld summary{cursor:pointer;color:var(--accent);font-weight:700;margin:6px 0}
+@media (max-width:560px){.ema-r{grid-template-columns:1fr}}
+.mono-part{margin:22px 0 4px;font:700 12px/1 var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--paper);background:var(--accent);display:inline-block;padding:6px 10px;border-radius:6px}
+.sec.mono ul{margin:6px 0 0;padding-left:20px}.sec.mono li{margin:3px 0}.sec.mono p{margin:6px 0}.sec.mono a{color:var(--accent);word-break:break-all}
+#f-sections{min-height:320px}
+.guide-tile{border-color:var(--accent);background:var(--accent-soft)}
+.guide-text h4{font:700 18px/1.3 var(--f-display);margin:22px 0 6px}.guide-text h5{font:700 15px/1.3 var(--f-body);margin:16px 0 4px;color:var(--accent)}
+.guide-text p{margin:8px 0}.guide-text ul{padding-left:20px;margin:6px 0}.guide-text li{margin:4px 0}.guide-text li.sub{margin-left:20px;list-style:circle}
+.tbl{overflow-x:auto;margin:12px 0}.tbl table{border-collapse:collapse;font-size:14px;min-width:520px}.tbl th,.tbl td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}.tbl th{background:var(--accent-soft)}
+.gnav{display:flex;justify-content:space-between;gap:10px;margin-top:24px;flex-wrap:wrap}.gnav .btn{max-width:100%;white-space:normal;text-align:left}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* oblasti */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.tile{text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:118px}
+.tile:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.tile .t{font-family:var(--f-display);font-weight:700;font-size:22px;line-height:1.15}
+.tile .s{color:var(--muted);font-size:14px}
+.tile .c{margin-top:auto;display:flex;flex-wrap:wrap;gap:4px 12px;white-space:nowrap;font-family:var(--f-mono);font-size:12px;color:var(--accent)}
+.areahead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:12px}
+.areahead h2{font-family:var(--f-display);font-size:clamp(26px,3vw,32px);margin:0}
+.item .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.k.recipes{color:var(--ochre)}.k.herbs{color:var(--accent)}.k.leaflets{color:var(--warn)}.k.ailments{color:var(--muted)}
+.share{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:18px}
+.share input{flex:1 1 200px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.share .msg{width:100%;font-size:14px;color:var(--muted)}
+.share .msg a{color:var(--accent)}
+.lead{font-size:18px;margin:8px 0 0;max-width:62ch;color:var(--ink)}
+.internal{border:1px dashed var(--line);border-radius:10px;padding:10px 14px;color:var(--muted);font-size:14px;max-width:65ch}
+.leaf ul{margin:0;padding-left:20px;max-width:65ch}.leaf li{margin-bottom:6px}
+.grid.full{grid-template-columns:minmax(0,1fr)}.grid.full .sheet{display:none}
+.basket{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:40;box-shadow:0 6px 24px rgba(29,92,52,.25)}
+.sel-list{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
+.sel-list li{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+.sel-list li span{flex:1;min-width:0}.sel-list li small{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.sel-list li button{border:1px solid var(--line);background:var(--paper);border-radius:8px;cursor:pointer;width:32px;height:32px;flex:none}
+body.has-basket .wrap{padding-bottom:96px}
+@media print{.basket,.top,.tabs,.list,.filters,.actions,.share,.back,footer,.calc-in{display:none!important}.grid{display:block}.sheet{border:0;box-shadow:none;position:static}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Byliny s rozumem</h1>
+      <p>Obtíže podle oblastí, byliny, recepty a letáky.</p>
+    </div>
+    <label class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Hledat třeba kašel, heřmánek, menstruace…" aria-label="Hledat">
+    </label>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="areas">Oblasti <span class="n" id="n-areas">0</span></button>
+    <button class="tab" role="tab" data-tab="recipes">Recepty <span class="n" id="n-recipes">0</span></button>
+    <button class="tab" role="tab" data-tab="herbs">Byliny <span class="n" id="n-herbs">0</span></button>
+    <button class="tab" role="tab" data-tab="leaflets">Letáky <span class="n" id="n-leaflets">0</span></button>
+    <button class="tab" role="tab" data-tab="monographs">Dr. Svátek <span class="n" id="n-monographs">0</span></button>
+    <span class="spacer"></span>
+    <button class="btn primary" id="add">+ Přidat</button>
+  </nav>
+  <div id="status" class="status" hidden></div>
+
+  <div class="grid" id="grid">
+    <div style="min-width:0">
+      <div class="filters chips" id="filters"></div>
+      <div class="list" id="list"></div>
+    </div>
+    <article class="sheet" id="sheet"></article>
+  </div>
+
+  <footer>Data jsou uložená ve vaší Google Tabulce. Informace slouží pro domácí použití a nenahrazují lékaře. Při vysoké horečce, potížích trvajících déle než několik dní, v těhotenství, u malých dětí nebo při užívání léků se poraďte s lékařem či lékárníkem.</footer>
+</div>
+
+<button class="btn primary basket" id="basket" data-basket hidden></button>
+
+<script>
+const AREAS = [
+  ['Dýchací cesty','Nachlazení, rýma, kašel, horečka'],
+  ['Ústa a krk','Bolest v krku, dásně, afty'],
+  ['Imunita a regenerace','Obranyschopnost, únava, rekonvalescence'],
+  ['Trávení','Žaludek, střeva, nadýmání, nevolnost'],
+  ['Játra a žlučník','Podpora jater, žluč, očista'],
+  ['Močové cesty a ledviny','Záněty, proplach, kameny'],
+  ['Ženské zdraví','Menstruace, PMS, perimenopauza'],
+  ['Mužské zdraví','Prostata, vitalita'],
+  ['Srdce a cévy','Tlak, oběh, žíly'],
+  ['Látková výměna','Cukr, cholesterol, kyselina močová'],
+  ['Pohybový aparát','Klouby, vazy, svaly, borelióza'],
+  ['Pokožka','Ranky, ekzémy, akné, podráždění'],
+  ['Nervy a spánek','Stres, nespavost, bolest hlavy'],
+  ['Ostatní','Co se nevešlo jinam']
+];
+const ALIAS = {'Kůže':'Pokožka','Spánek a nervy':'Nervy a spánek','Močové cesty':'Močové cesty a ledviny','Ženské obtíže':'Ženské zdraví','Klouby a svaly':'Pohybový aparát','Srdce a oběh':'Srdce a cévy'};
+const canon = c => ALIAS[c] || c;
+const TYPES = {
+  ailments:{one:'Obtíž', add:'Nová obtíž', plural:'Obtíže'},
+  herbs:{one:'Bylina', add:'Nová bylina', plural:'Byliny'},
+  recipes:{one:'Recept', add:'Nový recept', plural:'Recepty', cats:['Nálev','Odvar','Macerát','Směs','Koupel','Kloktadlo','Mast','Tinktura','Sirup','Obklad','Koupel','Ostatní']},
+  leaflets:{one:'Leták', add:'Nový leták', plural:'Letáky'},
+  monographs:{one:'Monografie', add:'Nová monografie', plural:'Monografie Dr. Svátek'},
+  guides:{one:'Průvodce', add:'Nová kapitola průvodce', plural:'Průvodci'}
+};
+const AREA_NAMES = AREAS.map(a=>a[0]);
+const UNITS = ['g','lžička','lžíce','ml','ks','hrst','plátek'];
+const S = {herbs:new Map(), ailments:new Map(), recipes:new Map(), leaflets:new Map(), monographs:new Map(), guides:new Map(), guide:null, tab:'areas', area:null, sel:null, q:'', cat:null, target:{}, loaded:false, pick:[]};
+try{S.pick=JSON.parse(localStorage.getItem('bsr-vyber')||'[]').filter(p=>p&&p.type&&p.id)}catch(_){S.pick=[]}
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = v => String(v ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const byName = (a,b) => (a.name||'').localeCompare(b.name||'', 'cs');
+const arr = v => Array.isArray(v) ? v : [];
+function api(fn,...args){return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args))}
+function toast(t){const el=document.createElement('div');el.className='toast';el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2600)}
+function status(t){const el=$('#status');el.hidden=!t;el.textContent=t||''}
+
+/* ---------- vztahy ---------- */
+const herbsFor = aid => [...S.herbs.values()].filter(h=>arr(h.ailmentIds).includes(aid)).sort(byName);
+const recipesForAilment = aid => [...S.recipes.values()].filter(r=>arr(r.ailmentIds).includes(aid)).sort(byName);
+const recipesForHerb = hid => [...S.recipes.values()].filter(r=>arr(r.ingredients).some(i=>i.herbId===hid)).sort(byName);
+const recipeHerbs = r => [...new Set(arr(r.ingredients).map(i=>i.herbId).filter(Boolean))].map(id=>S.herbs.get(id)).filter(Boolean);
+const names = (ids,map) => arr(ids).map(id=>map.get(id)?.name).filter(Boolean);
+const ingName = i => (i.herbId && S.herbs.get(i.herbId)?.name) || i.name || '';
+function allAreas(){const used=new Set([...S.ailments.values()].map(areaOf));const extra=[...used].filter(u=>!AREA_NAMES.includes(u)).map(u=>[u,'']);const base=AREAS.filter(a=>a[0]!=='Ostatní'||used.has('Ostatní'));return [...base,...extra]}
+const areaOf = a => canon(a.category) || 'Ostatní';
+function areaContent(area){
+  const ail=[...S.ailments.values()].filter(a=>areaOf(a)===area).sort(byName);
+  const ids=new Set(ail.map(a=>a.id));
+  const rec=[...S.recipes.values()].filter(r=>arr(r.ailmentIds).some(i=>ids.has(i))).sort(byName);
+  const herbs=[...S.herbs.values()].filter(h=>arr(h.ailmentIds).some(i=>ids.has(i))).sort(byName);
+  const leaf=[...S.leaflets.values()].filter(l=>canon(l.category)===area||l.category==='Obecné').sort((a,b)=>(a.category==='Obecné')-(b.category==='Obecné')||byName(a,b));
+  return {ailments:ail, recipes:rec, herbs, leaflets:leaf};
+}
+function haystack(type,x){
+  const p=[x.name,x.latin,x.category,x.description,x.internal,x.effects,x.use,x.part,x.summary,x.text];
+  if(type==='herbs') p.push(...names(x.ailmentIds,S.ailments),x.fytoUcinky);
+  if(type==='ailments') p.push(...herbsFor(x.id).map(h=>h.name));
+  if(type==='recipes') p.push(...names(x.ailmentIds,S.ailments),...arr(x.ingredients).map(ingName));
+  if(type==='monographs') p.push(x.family,...arr(x.sections).map(z=>z.t+' '+z.x));
+  if(type==='guides') p.push(x.guide,x.part,x.text);
+  return norm(p.join(' '));
+}
+const match = (type,x) => { const q=norm(S.q.trim()); return !q || haystack(type,x).includes(q) };
+
+/* ---------- vykreslení ---------- */
+function render(){
+  $('#n-areas').textContent=allAreas().length;
+  for(const t of ['recipes','herbs','leaflets','monographs']) $('#n-'+t).textContent=S[t].size;
+  document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===S.tab));
+  $('#add').textContent = S.tab==='areas' ? '+ Nová obtíž' : '+ '+TYPES[S.tab].add;
+  renderFilters(); renderList(); renderSheet(); renderBasket();
+}
+function renderFilters(){
+  const el=$('#filters'); let cats=[];
+  if(S.tab==='recipes'){const used=new Set([...S.recipes.values()].map(x=>x.category).filter(Boolean));cats=TYPES.recipes.cats.filter(c=>used.has(c));for(const c of used)if(!cats.includes(c))cats.push(c)}
+  if(S.tab==='herbs'||S.tab==='leaflets'){const used=new Set([...S.ailments.values()].map(areaOf));cats=allAreas().map(a=>a[0]).filter(a=>used.has(a))}
+  if(S.tab==='areas'&&S.area&&!S.q.trim()){
+    const used=allAreas().map(a=>a[0]);
+    el.hidden=false;el.innerHTML=used.map(c=>`<button class="chip" data-area="${esc(c)}" aria-pressed="${S.area===c}">${esc(c)}</button>`).join('');return;
+  }
+  if(!cats.length||S.tab==='areas'){el.hidden=true;el.innerHTML='';return}
+  el.hidden=false;
+  el.innerHTML=`<button class="chip" data-cat="" aria-pressed="${!S.cat}">Vše</button>`+cats.map(c=>`<button class="chip" data-cat="${esc(c)}" aria-pressed="${S.cat===c}">${esc(c)}</button>`).join('');
+}
+function card(type,x,showKind){
+  let s='';
+  if(type==='herbs') s=`${x.latin?`<i>${esc(x.latin)}</i> · `:''}${esc(names(x.ailmentIds,S.ailments).join(', ')||x.part||'')}`;
+  else if(type==='ailments') s=esc(herbsFor(x.id).slice(0,4).map(h=>h.name).join(', ')||x.description||'');
+  else if(type==='recipes') s=esc([x.category,names(x.ailmentIds,S.ailments).join(', ')].filter(Boolean).join(' · '));
+  else if(type==='guides') s=esc(x.part||'');
+  else if(type==='monographs') s=`${x.latin?`<i>${esc(x.latin)}</i>`:''}${x.family?' · '+esc(x.family):''}`;
+  else s=esc(x.summary||x.category||'');
+  const cur=S.sel&&S.sel.type===type&&S.sel.id===x.id;
+  return `<button class="item" data-open="${type}:${esc(x.id)}" aria-current="${cur}">${showKind?`<div class="k ${type}">${TYPES[type].one}</div>`:''}<div class="t">${esc(splitName(x.name)[1])}</div><div class="s">${s}</div></button>`;
+}
+const pl=(n,a,b,c)=>`${n} ${n===1?a:n>=2&&n<=4?b:c}`;
+function splitName(n){n=String(n||'');const i=n.lastIndexOf(' – ');return i>0&&/Byliny s rozumem/.test(n)?[n.slice(0,i),n.slice(i+3)]:['',n]}
+const grp = t => `<div class="grp">${esc(t)}</div>`;
+function renderList(){
+  const el=$('#list'), grid=$('#grid');
+  grid.classList.remove('full');
+  if(!S.loaded){el.innerHTML=`<div class="empty">Načítám data z tabulky…</div>`;return}
+  const q=S.q.trim();
+  if(S.tab==='areas' && q){ // hledání napříč vším
+    let h='';
+    for(const t of ['ailments','recipes','herbs','leaflets','monographs','guides']){const it=[...S[t].values()].filter(x=>match(t,x)).sort(byName);if(it.length)h+=grp(TYPES[t].plural)+it.map(x=>card(t,x)).join('')}
+    el.innerHTML=h||`<div class="empty">Nic neodpovídá hledání „${esc(q)}“.</div>`;return;
+  }
+  if(S.tab==='areas' && !S.area){
+    grid.classList.add('full');
+    const all=allAreas();
+    el.innerHTML=`<div class="tiles">${all.map(([a,d])=>{const c=areaContent(a);const ail=c.ailments.map(x=>x.name);
+      return `<button class="tile" data-area="${esc(a)}"><div class="t">${esc(a)}</div><div class="s">${esc(ail.slice(0,4).join(', ')||d)}</div><div class="c">${c.ailments.length||c.recipes.length?'':'<span style="color:var(--muted)">zatím prázdné</span>'}${!c.ailments.length&&!c.recipes.length?'':''}<span ${c.ailments.length?'':'hidden'}>${pl(c.ailments.length,'obtíž','obtíže','obtíží')}</span><span ${c.recipes.length?'':'hidden'}>${pl(c.recipes.length,'recept','recepty','receptů')}</span><span ${c.herbs.length?'':'hidden'}>${pl(c.herbs.length,'bylina','byliny','bylin')}</span></div></button>`}).join('')}</div>`;
+    return;
+  }
+  if(S.tab==='areas'&&S.guide){
+    const ch=guideChapters(S.guide);let last=null,h='';
+    for(const x of ch){if(x.part!==last){h+=grp(x.part||'');last=x.part}h+=card('guides',x)}
+    el.innerHTML=`<div class="areahead"><button class="btn ghost" data-area="${esc(S.area)}">← ${esc(S.area)}</button><h2>${esc(S.guide)}</h2></div>`+h;
+    return;
+  }
+  if(S.tab==='areas'){
+    const c=areaContent(S.area), gds=guidesInArea(S.area);
+    el.innerHTML=`<div class="areahead"><button class="btn ghost" data-areas>← Všechny oblasti</button><h2>${esc(S.area)}</h2></div>`+
+      (gds.length?grp('Průvodci')+gds.map(g=>`<button class="item guide-tile" data-guide="${esc(g)}"><div class="t">${esc(g)}</div><div class="s">Průvodce · ${pl(guideChapters(g).length,'kapitola','kapitoly','kapitol')}</div></button>`).join(''):'')+
+      (c.recipes.length?grp('Recepty')+c.recipes.map(x=>card('recipes',x)).join(''):'')+
+      (c.leaflets.length?grp('Informace a letáky')+c.leaflets.map(x=>card('leaflets',x)).join(''):'')+
+      (c.ailments.length?grp('Obtíže')+c.ailments.map(x=>card('ailments',x)).join(''):'')+
+      (c.herbs.length?grp('Byliny')+c.herbs.map(x=>card('herbs',x)).join(''):'')+
+      (c.ailments.length||c.recipes.length||c.herbs.length?'':`<div class="empty">V oblasti ${esc(S.area)} zatím nic není.<br>Začněte tlačítkem <b>+ Nová obtíž</b>, pak k ní přidejte recepty a byliny.</div>`);
+    return;
+  }
+  const items=[...S[S.tab].values()].filter(x=>match(S.tab,x)&&(!S.cat||(S.tab==='recipes'?x.category===S.cat:S.tab==='leaflets'?canon(x.category)===S.cat:arr(x.ailmentIds).some(i=>S.ailments.get(i)&&areaOf(S.ailments.get(i))===S.cat)))).sort(byName);
+  el.innerHTML=items.length?items.map(x=>card(S.tab,x)).join(''):`<div class="empty">${S[S.tab].size?'Nic neodpovídá filtru.':'Zatím prázdné. Přidejte první záznam tlačítkem nahoře.'}</div>`;
+}
+const linkBtn=(type,x,cls='')=>`<button class="link ${cls}" data-open="${type}:${esc(x.id)}">${esc(x.name)}</button>`;
+const sec=(title,body)=>body?`<section class="sec"><h3>${title}</h3>${body}</section>`:'';
+const para=t=>t?`<p>${esc(t)}</p>`:'';
+const fytoBox=x=>{if(!x.fytoUcinky&&!x.fytoPouziti&&!x.fytoUpozorneni)return '';
+  const row=(k,v)=>v?`<div class="ema-r"><div class="ema-k">${k}</div><div>${esc(v)}</div></div>`:'';
+  return `<section class="sec ema fyto"><h3>Z knihy Fytoterapia (MUDr. Karol Mika)</h3>${row('Účinky',x.fytoUcinky)}${row('Použití a dávkování',x.fytoPouziti)}${row('Upozornění',x.fytoUpozorneni)}${x.fytoZdroj?`<div class="ema-src">Zdroj: ${esc(x.fytoZdroj)}</div>`:''}</section>`};
+const emaBox=x=>{if(!x.emaStatus&&!x.emaIndications)return '';
+  const row=(k,v)=>v?`<div class="ema-r"><div class="ema-k">${k}</div><div>${esc(v)}</div></div>`:'';
+  return `<section class="sec ema"><h3>Evropská monografie (EMA)</h3>${x.emaStatus?`<div class="ema-st">${esc(x.emaStatus)}</div>`:''}
+    ${row('Schválené použití',x.emaIndications)}${row('Dávkování',x.emaDosage)}${row('Bezpečnost',x.emaSafety)}
+    ${x.emaUrl?`<a class="ema-src" href="${esc(x.emaUrl)}" target="_blank" rel="noopener">Zdroj: monografie EMA/HMPC (anglicky, PDF) ↗</a>`:''}</section>`};
+const chipsOf=(list,type,cls)=>list.length?`<div class="chips">${list.map(x=>linkBtn(type,x,cls)).join('')}</div>`:'';
+const lines=t=>String(t||'').split('\n').map(s=>s.trim()).filter(Boolean);
+const mdInline=t=>esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');
+function md(t){
+  const L=lines(t);let h='',ul=false;const close=()=>{if(ul){h+='</ul>';ul=false}};
+  for(let i=0;i<L.length;i++){const l=L[i];
+    if(/^\|/.test(l)){close();const rows=[];while(i<L.length&&/^\|/.test(L[i])){if(!/^\|[\s\-|:]+\|$/.test(L[i]))rows.push(L[i].replace(/^\||\|$/g,'').split('|').map(c=>c.trim()));i++}i--;
+      h+=`<div class="tbl"><table><thead><tr>${rows[0].map(c=>`<th>${mdInline(c)}</th>`).join('')}</tr></thead><tbody>${rows.slice(1).map(r=>`<tr>${r.map(c=>`<td>${mdInline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;continue}
+    if(/^####\s/.test(l)){close();h+=`<h5>${mdInline(l.replace(/^####\s+/,''))}</h5>`;continue}
+    if(/^###\s/.test(l)){close();h+=`<h4>${mdInline(l.replace(/^###\s+/,''))}</h4>`;continue}
+    const sub=/^--\s/.test(l), li=sub||/^[-•]\s+/.test(l);
+    if(li){if(!ul){h+='<ul>';ul=true}h+=`<li${sub?' class="sub"':''}>${mdInline(l.replace(/^(--|[-•])\s+/,''))}</li>`;continue}
+    close();h+=`<p>${mdInline(l)}</p>`}
+  close();return h}
+const guidesInArea=a=>[...new Set([...S.guides.values()].filter(g=>canon(g.area)===a).map(g=>g.guide))].sort();
+const guideChapters=g=>[...S.guides.values()].filter(x=>x.guide===g).sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0));
+const monoForHerb=hid=>[...S.monographs.values()].filter(m=>m.herbId===hid).sort(byName);
+const secsToText=a=>arr(a).map(z=>'### '+z.t+'\n'+z.x).join('\n\n');
+const textToSecs=t=>{const out=[];let cur=null;for(const l of String(t||'').split('\n')){const m=l.match(/^###\s*(.+)$/);if(m){cur={t:m[1].trim(),x:''};out.push(cur)}else{if(!cur){cur={t:'Text',x:''};out.push(cur)}cur.x+=(cur.x?'\n':'')+l}}out.forEach(z=>z.x=z.x.trim());return out.filter(z=>z.t||z.x)};
+
+function firstInView(){
+  if(S.tab==='areas'&&S.guide){const f=guideChapters(S.guide)[0];return f?{type:'guides',id:f.id}:null}
+  if(S.tab==='areas'){ if(!S.area)return null; const c=areaContent(S.area); const t=['recipes','leaflets','ailments','herbs'].find(k=>c[k].length); return t?{type:t,id:c[t][0].id}:null }
+  const f=[...S[S.tab].values()].sort(byName)[0]; return f?{type:S.tab,id:f.id}:null;
+}
+function renderSheet(){
+  const el=$('#sheet'), grid=$('#grid');
+  let sel=S.sel, x=sel&&S[sel.type].get(sel.id);
+  if(!x){sel=firstInView();x=sel&&S[sel.type].get(sel.id);grid.classList.remove('detail')}
+  if(!x){el.innerHTML=`<div class="empty">Vyberte záznam ze seznamu.</div>`;return}
+  el.dataset.type=sel.type; el.dataset.id=x.id;
+  const back=`<button class="btn ghost back" data-back>← Zpět</button>`;
+  const act=`<div class="actions"><button class="btn" data-edit>Upravit</button><button class="btn ghost" data-del>Smazat</button></div>`;
+  let h='';
+  if(sel.type==='herbs'){
+    const ail=arr(x.ailmentIds).map(id=>S.ailments.get(id)).filter(Boolean).sort(byName);
+    h=`${back}<div class="eyebrow">Bylina</div><h2>${esc(x.name)}</h2>${x.latin?`<div class="latin">${esc(x.latin)}</div>`:''}
+      <div class="meta">${x.part?`<span>Používá se: <b>${esc(x.part)}</b></span>`:''}${x.season?`<span>Sběr: <b>${esc(x.season)}</b></span>`:''}</div>
+      ${sec('Pomáhá při',chipsOf(ail,'ailments','a'))}${sec('Účinky',para(x.effects))}${sec('Jak se používá',para(x.use))}
+      ${x.warning?sec('Upozornění',`<div class="note">${esc(x.warning)}</div>`):''}${sec('Recepty s touto bylinou',chipsOf(recipesForHerb(x.id),'recipes','r'))}${sec('Monografie Dr. Svátek',chipsOf(monoForHerb(x.id),'monographs'))}${fytoBox(x)}${emaBox(x)}`;
+  } else if(sel.type==='ailments'){
+    h=`${back}<div class="eyebrow">Obtíž · ${esc(areaOf(x))}</div><h2>${esc(x.name)}</h2>
+      ${sec('Popis',para(x.description))}${sec('Recepty',chipsOf(recipesForAilment(x.id),'recipes','r'))}
+      ${sec('Byliny, které pomáhají',chipsOf(herbsFor(x.id),'herbs'))}${x.doctor?sec('Kdy k lékaři',`<div class="note">${esc(x.doctor)}</div>`):''}${shareBox()}`;
+  } else if(sel.type==='recipes'){
+    const ail=arr(x.ailmentIds).map(id=>S.ailments.get(id)).filter(Boolean).sort(byName);
+    const st=lines(x.steps);
+    const [pre,short]=splitName(x.name);
+    h=`${back}<div class="eyebrow">${pre?esc(pre):'Recept'}${x.category?' · '+esc(x.category):''}</div><h2>${esc(short)}</h2>${x.description?`<p class="lead">${esc(x.description)}</p>`:''}
+      ${sec('Na obtíže',chipsOf(ail,'ailments','a'))}${recipeCalc(x)}
+      ${sec('Postup',st.length?`<ol class="steps">${st.map(s=>`<li>${esc(s.replace(/^\d+[.)]\s*/,''))}</li>`).join('')}</ol>`:'')}
+      ${sec('Dávkování',para(x.dosage))}${x.warning?sec('Upozornění',`<div class="note">${esc(x.warning)}</div>`):''}${x.internal?sec('Interní poznámka · netiskne se ani neposílá',`<div class="internal">${esc(x.internal)}</div>`):''}
+      ${sec('Byliny v receptu',chipsOf(recipeHerbs(x),'herbs'))}${shareBox()}`;
+  } else if(sel.type==='guides'){
+    const ch=guideChapters(x.guide), i=ch.findIndex(c=>c.id===x.id), pv=ch[i-1], nx=ch[i+1];
+    const nav=`<div class="gnav">${pv?`<button class="btn ghost" data-open="guides:${esc(pv.id)}">← ${esc(pv.name)}</button>`:'<span></span>'}${nx?`<button class="btn ghost" data-open="guides:${esc(nx.id)}">${esc(nx.name)} →</button>`:''}</div>`;
+    h=`${back}<div class="eyebrow">Průvodce ${esc(x.guide)}${x.part?' · '+esc(x.part):''}</div><h2>${esc(x.name)}</h2><div class="sec guide-text">${md(x.text)}</div>${nav}`;
+  } else if(sel.type==='monographs'){
+    const hb=x.herbId&&S.herbs.get(x.herbId);
+    const ss=arr(x.sections), pro=ss.findIndex(z=>/^1\.\s/.test(z.t));
+    const block=list=>list.map(z=>`<section class="sec mono"><h3>${esc(z.t)}</h3>${md(z.x)}</section>`).join('');
+    h=`${back}<div class="eyebrow">Monografie Dr. Svátek${x.number?' · č. '+esc(x.number):''}</div><h2>${esc(x.name)}</h2>${x.latin?`<div class="latin">${esc(x.latin)}${x.family?' · '+esc(x.family):''}</div>`:''}
+      ${hb?sec('Bylina v databázi',chipsOf([hb],'herbs')):''}
+      ${pro>0?`<div class="mono-part">Pro klienty</div>${block(ss.slice(0,pro))}<div class="mono-part">Odborná monografie</div>${block(ss.slice(pro))}`:block(ss)}`;
+  } else {
+    const tl=lines(x.text);
+    h=`${back}<div class="eyebrow">Leták${x.category?' · '+esc(x.category):''}</div><h2>${esc(x.name)}</h2>
+      ${x.summary?`<p class="latin" style="margin:6px 0 0">${esc(x.summary)}</p>`:''}
+      <div class="sec leaf">${tl.length>1?`<ul>${tl.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:para(x.text)}</div>
+      ${x.url?sec('Odkaz',`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a>`):''}${shareBox()}`;
+  }
+  el.innerHTML=h+act;
+}
+const inPick=(type,id)=>S.pick.some(p=>p.type===type&&p.id===id);
+function savePick(){try{localStorage.setItem('bsr-vyber',JSON.stringify(S.pick))}catch(_){}}
+function renderBasket(){const b=$('#basket');if(!b)return;const n=S.pick.filter(p=>S[p.type]&&S[p.type].get(p.id)).length;b.hidden=!n;document.body.classList.toggle('has-basket',!!n);b.textContent='Výběr k odeslání: '+n}
+function shareBox(){
+  const sh=$('#sheet'),on=inPick(sh.dataset.type,sh.dataset.id);
+  return `<div class="share"><button class="btn" data-sel-toggle aria-pressed="${on}">${on?'✓ Ve výběru k odeslání':'+ Přidat do výběru'}</button></div><div class="share"><button class="btn primary" data-pdf>Vytvořit PDF k tisku</button><input id="mail-to" type="email" placeholder="e-mail příjemce" aria-label="E-mail příjemce"><button class="btn" data-mail>Poslat e-mailem</button><div class="msg" id="share-msg"></div></div>`;
+}
+function fmt(n){if(!isFinite(n))return '';const r=n<100?Math.round(n*100)/100:Math.round(n*10)/10;return String(r).replace('.',',')}
+function recipeCalc(r){
+  const base=Number(r.baseAmount)||0, unit=r.baseUnit||'ml vody';
+  const target=S.target[r.id] ?? (/směs/.test(unit)?100:base), f=base?target/base:1;
+  const rows=arr(r.ingredients).map(i=>{const a=Number(i.amount);const q=isFinite(a)&&a>0?`${fmt(a*f)} ${esc(i.unit||'')}`:esc(i.unit||'');
+    const hb=i.herbId&&S.herbs.get(i.herbId);
+    return `<tr><td class="q">${q}</td><td>${hb?linkBtn('herbs',hb):esc(ingName(i))}${i.note&&!(hb?hb.name:ingName(i)).toLowerCase().includes('('+String(i.note).toLowerCase()+')')?` <span style="color:var(--muted)">(${esc(i.note)})</span>`:''}</td></tr>`}).join('');
+  const params=[['Teplota',r.temp],['Louhování',r.time],[/směs/.test(unit)?'Dávka':'Výtěžek',/směs/.test(unit)||target===base?r.yield:'']].filter(p=>p[1]).map(p=>`<div class="param"><div class="k">${p[0]}</div><div class="v">${esc(p[1])}</div></div>`).join('');
+  if(!rows&&!params)return '';
+  const pv=unit.startsWith('ml')&&base===250?[[250,'1 hrnek'],[500,'konvička'],[1000,'1 litr']]:/směs/.test(unit)?[[50,'50 g'],[100,'100 g'],[200,'200 g'],[500,'500 g']]:unit.startsWith('g')||unit.startsWith('ml')?[100,300,500,1000].map(v=>[v,v+' '+unit.split(' ')[0]]):[];
+  const presets=pv.map(([v,l])=>`<button class="chip" data-preset="${v}" aria-pressed="${target===v}">${l}</button>`).join('');
+  return `<div class="calc">${base?`<div class="calc-head"><div class="eyebrow">Kolik připravit</div><div class="calc-in"><input id="calc-target" type="number" min="1" step="any" inputmode="decimal" value="${target}" aria-label="Množství"><span>${esc(unit)}</span>${presets}</div></div>`:''}
+    ${rows?`<table class="ing"><tbody>${rows}</tbody></table>`:''}${params?`<div class="params">${params}</div>`:''}</div>`;
+}
+
+/* ---------- události ---------- */
+function openItem(type,id){
+  S.sel={type,id};
+  if(S.tab!=='areas'||S.q.trim()){ if(type==='ailments'){S.tab='areas';S.area=areaOf(S.ailments.get(id)||{})} else if(S.tab!=='areas'&&type!==S.tab){S.tab=type;S.cat=null} }
+  if(S.tab==='areas'&&!S.area&&type==='ailments')S.area=areaOf(S.ailments.get(id)||{});
+  if(type==='guides'&&S.tab==='areas'){const g=S.guides.get(id);if(g){S.area=canon(g.area)||S.area;S.guide=g.guide}}
+  $('#grid').classList.add('detail');render();
+  if(matchMedia('(max-width:780px)').matches)window.scrollTo({top:0});
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab],[data-open],[data-cat],[data-back],[data-edit],[data-del],[data-preset],[data-area],[data-areas],[data-guide],[data-pdf],[data-mail],[data-sel-toggle],[data-basket],#add');
+  if(!t)return;
+  if(t.dataset.tab){S.tab=t.dataset.tab;S.cat=null;S.sel=null;S.guide=null;if(S.tab==='areas')S.area=null;$('#grid').classList.remove('detail');render();return}
+  if(t.dataset.guide){S.guide=t.dataset.guide;S.sel=null;render();window.scrollTo({top:0});return}
+  if(t.dataset.area){S.area=t.dataset.area;S.guide=null;S.sel=null;render();window.scrollTo({top:0});return}
+  if('areas' in t.dataset){S.area=null;S.sel=null;$('#grid').classList.remove('detail');render();return}
+  if(t.dataset.open){const [type,id]=t.dataset.open.split(':');openItem(type,id);return}
+  if('cat' in t.dataset){S.cat=t.dataset.cat||null;render();return}
+  if('back' in t.dataset){$('#grid').classList.remove('detail');S.sel=null;render();return}
+  if('basket' in t.dataset){openBasket();return}
+  if(t.id==='add'){const type=S.tab==='areas'?'ailments':S.tab;openForm(type,null,S.tab==='areas'?S.area:null);return}
+  const sh=$('#sheet'), type=sh.dataset.type, id=sh.dataset.id;
+  if('edit' in t.dataset){openForm(type,S[type].get(id));return}
+  if('del' in t.dataset){confirmDelete(t,type,id);return}
+  if(t.dataset.preset){S.target[id]=Number(t.dataset.preset);renderSheet();return}
+  if('selToggle' in t.dataset){if(inPick(type,id))S.pick=S.pick.filter(p=>!(p.type===type&&p.id===id));else S.pick.push({type,id});savePick();renderSheet();renderBasket();toast(inPick(type,id)?'Přidáno do výběru':'Odebráno z výběru');return}
+  if('pdf' in t.dataset){doPdf(t,type,id);return}
+  if('mail' in t.dataset){doMail(t,type,id);return}
+});
+document.addEventListener('input',e=>{
+  if(e.target.id==='q'){S.q=e.target.value;if(S.q.trim()&&!['areas'].includes(S.tab)){} renderList();return}
+  if(e.target.id==='calc-target'){const id=$('#sheet').dataset.id,v=parseFloat(e.target.value);if(v>0){S.target[id]=v;const pos=e.target.selectionStart;renderSheet();const n=$('#calc-target');n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}}}
+});
+/* Podoba PDF a e-mailu. Skript ji jen převede na PDF a odešle. */
+let BRAND={name:'Byliny s rozumem',author:'Martin Šajner',phone:'773 799 926',logo:''}; // lze přepsat listem Nastavení (id: name, author, phone, logo)
+function printDoc(type,id,amount){
+  const r=S[type].get(id); if(!r) throw new Error('Záznam nebyl nalezen.');
+  const E=v=>esc(v==null?'':v), L=t=>String(t||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  const N=n=>{const x=n<100?Math.round(n*100)/100:Math.round(n*10)/10;return String(x).replace('.',',')};
+  const css='body{font-family:Georgia,serif;color:#1d5c34;margin:32px 40px;line-height:1.45;font-size:12pt}'+
+    'h1{font-size:24pt;margin:0 0 4px}.eb{font:bold 9pt Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#2e7d46}'+
+    'h2{font:bold 10pt Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#4f7f5e;margin:20px 0 6px;border-bottom:1px solid #cfe3d5;padding-bottom:3px}'+
+    'table{border-collapse:collapse}td{padding:4px 14px 4px 0}td.q{font-family:Courier,monospace;font-weight:bold;color:#2e7d46;text-align:right;white-space:nowrap}'+
+    '.note{background:#f6e3da;color:#8a3b1f;padding:8px 12px}.foot{margin-top:28px;padding-top:8px;border-top:1px solid #cfe3d5;font:9pt Arial,sans-serif;color:#4f7f5e}'+
+    '.brand{width:100%;border-bottom:2px solid #2e7d46;margin-bottom:18px}.brand td{padding:0 0 8px}.bn{font:bold 16pt Georgia,serif;color:#1d5c34}.bc{font:10pt Arial,sans-serif;color:#2e7d46;text-align:right}';
+  let h='<html><head><meta charset="utf-8"><style>'+css+'</style></head><body>';
+  h+='<table class="brand"><tr><td>'+(BRAND.logo?'<img src="'+E(BRAND.logo)+'" alt="'+E(BRAND.name)+'" width="96" style="width:96px;height:auto">':'<span class="bn">'+E(BRAND.name)+'</span>')+'</td><td class="bc">'+E(BRAND.author)+'<br>tel. <b>'+E(BRAND.phone)+'</b></td></tr></table><!--B-->';
+  if(type==='recipes'){
+    const base=Number(r.baseAmount)||0, target=Number(amount)||(/směs/.test(r.baseUnit||'')?100:base), f=base?target/base:1;
+    const ail=names(r.ailmentIds,S.ailments);
+    h+='<div class="eb">Byliny s rozumem'+(r.category?' · '+E(r.category):'')+'</div><h1>'+E(r.name)+'</h1>';
+    if(ail.length)h+='<div>Na obtíže: '+E(ail.join(', '))+'</div>';
+    if(r.description)h+='<p><i>'+E(r.description)+'</i></p>';
+    h+='<h2>Suroviny'+(base?' (na '+N(target)+' '+E(r.baseUnit)+')':'')+'</h2><table>';
+    arr(r.ingredients).forEach(i=>{const a=Number(i.amount),nm=ingName(i);
+      h+='<tr><td class="q">'+(a>0?N(a*f)+' ':'')+E(i.unit)+'</td><td>'+E(nm)+(i.note&&!nm.toLowerCase().includes('('+String(i.note).toLowerCase()+')')?' ('+E(i.note)+')':'')+'</td></tr>'});
+    h+='</table>';
+    const p=[['Teplota',r.temp],['Louhování',r.time],[/směs/.test(r.baseUnit)?'Dávka':'Výtěžek',r.yield]].filter(x=>x[1]);
+    if(p.length)h+='<p>'+p.map(x=>'<b>'+x[0]+':</b> '+E(x[1])).join(' &nbsp; ')+'</p>';
+    const st=L(r.steps);
+    if(st.length)h+='<h2>Postup</h2><ol>'+st.map(x=>'<li>'+E(x.replace(/^\d+[.)]\s*/,''))+'</li>').join('')+'</ol>';
+    if(r.dosage)h+='<h2>Dávkování</h2><p>'+E(r.dosage)+'</p>';
+    const warn=[r.warning,...arr(r.ingredients).map(i=>{const hb=i.herbId&&S.herbs.get(i.herbId);return hb&&hb.warning?hb.name+': '+hb.warning:''})].filter(Boolean);
+    if(warn.length)h+='<h2>Upozornění</h2><div class="note">'+warn.map(E).join('<br>')+'</div>';
+  } else if(type==='ailments'){
+    h+='<div class="eb">Obtíž · '+E(areaOf(r))+'</div><h1>'+E(r.name)+'</h1>';
+    const dl=L(r.description);
+    if(dl.length)h+=dl.length>1?'<ul>'+dl.map(x=>'<li>'+E(x)+'</li>').join('')+'</ul>':'<p>'+E(r.description)+'</p>';
+    const rc=recipesForAilment(r.id);
+    if(rc.length)h+='<h2>Doporučené recepty</h2><ul>'+rc.map(x=>'<li><b>'+E(x.name)+'</b>'+(x.dosage?'<br>'+E(L(x.dosage)[0]||''):'')+'</li>').join('')+'</ul>';
+    const hb=herbsFor(r.id);
+    if(hb.length)h+='<h2>Byliny, které pomáhají</h2><p>'+hb.map(x=>E(x.name)).join(', ')+'</p>';
+    if(r.doctor)h+='<h2>Kdy k lékaři</h2><div class="note">'+E(r.doctor)+'</div>';
+  } else {
+    h+='<div class="eb">Informační leták'+(r.category?' · '+E(r.category):'')+'</div><h1>'+E(r.name)+'</h1>';
+    if(r.summary)h+='<p><i>'+E(r.summary)+'</i></p>';
+    const tl=L(r.text);
+    h+=tl.length>1?'<ul>'+tl.map(x=>'<li>'+E(x)+'</li>').join('')+'</ul>':'<p>'+E(r.text)+'</p>';
+    if(r.url)h+='<p>Více: '+E(r.url)+'</p>';
+  }
+  h+='<!--E--><div class="foot">'+E(BRAND.name)+' · '+E(BRAND.author)+' · tel. '+E(BRAND.phone)+'<br>Informace pro domácí použití, nenahrazují lékaře.<br>© '+new Date().getFullYear()+' '+E(BRAND.name)+'. Všechna práva vyhrazena.</div></body></html>';
+  return {html:h,name:r.name};
+}
+const KIND={recipes:'Recept',leaflets:'Leták',ailments:'Obtíž'};
+function printMany(list){
+  list=list.filter(p=>S[p.type]&&S[p.type].get(p.id));
+  if(!list.length)throw new Error('Výběr je prázdný.');
+  const parts=list.map(p=>printDoc(p.type,p.id,S.target[p.id]||null).html), f=parts[0];
+  const head=f.slice(0,f.indexOf('<!--B-->')), tail=f.slice(f.indexOf('<!--E-->'));
+  const body=h=>h.slice(h.indexOf('<!--B-->')+8,h.indexOf('<!--E-->'));
+  const nm=list.map(p=>S[p.type].get(p.id).name);
+  const toc=list.length>1?'<div class="eb">Obsah zásilky</div><ol>'+nm.map(n=>'<li>'+esc(n)+'</li>').join('')+'</ol>':'';
+  const name=list.length===1?nm[0]:'Byliny s rozumem – '+nm.join(', ');
+  const sep='<div style="page-break-before:always;border-top:2px solid #cfe3d5;margin:36px 0 0;padding-top:4px"></div>';
+  return {html:head+(toc?toc+'<hr style="border:0;border-top:1px solid #cfe3d5;margin:18px 0">':'')+parts.map(body).join(sep)+tail,name:name.length>140?name.slice(0,137)+'…':name};
+}
+function openBasket(){
+  const ov=document.createElement('div');ov.className='overlay';
+  const draw=()=>{const list=S.pick.filter(p=>S[p.type]&&S[p.type].get(p.id));
+    ov.innerHTML=`<div class="form"><h2>Výběr k odeslání</h2>${list.length?`<ul class="sel-list">${list.map((p,i)=>`<li><span><small>${KIND[p.type]||''}</small>${esc(S[p.type].get(p.id).name)}</span><button type="button" data-up="${i}" aria-label="Posunout výš" ${i?'':'disabled style="visibility:hidden"'}>↑</button><button type="button" data-rm="${i}" aria-label="Odebrat">×</button></li>`).join('')}</ul>
+      <div class="share" style="margin-top:0"><input id="b-to" type="email" placeholder="e-mail příjemce" aria-label="E-mail příjemce"><button class="btn primary" data-send>Poslat vše jedním e-mailem</button><button class="btn" data-bpdf>Vytvořit jedno PDF</button><div class="msg" id="b-msg"></div></div>`:'<div class="empty">Výběr je prázdný. U receptu, letáku nebo obtíže klepněte na „+ Přidat do výběru“.</div>'}
+      <div class="formbar"><button type="button" class="btn ghost" data-clear ${list.length?'':'hidden'}>Vyprázdnit výběr</button><button type="button" class="btn" data-close>Zavřít</button></div></div>`;S.pick=list};
+  draw();document.body.appendChild(ov);
+  ov.addEventListener('keydown',e=>{if(e.key==='Escape'){ov.remove();render()}});
+  ov.addEventListener('click',async e=>{
+    const t=e.target;
+    if(t===ov||t.closest('[data-close]')){ov.remove();render();return}
+    const rm=t.closest('[data-rm]');if(rm){S.pick.splice(+rm.dataset.rm,1);savePick();draw();return}
+    const up=t.closest('[data-up]');if(up){const i=+up.dataset.up;if(i>0){[S.pick[i-1],S.pick[i]]=[S.pick[i],S.pick[i-1]];savePick();draw()}return}
+    if(t.closest('[data-clear]')){S.pick=[];savePick();draw();return}
+    const msg=ov.querySelector('#b-msg');
+    if(t.closest('[data-send]')){const to=ov.querySelector('#b-to').value.trim();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){msg.textContent='Zadejte platnou e-mailovou adresu.';ov.querySelector('#b-to').focus();return}
+      t.disabled=true;msg.textContent='Odesílám…';
+      try{const d=printMany(S.pick);await api('sendHtmlEmail',to,d.name,d.html);msg.textContent=`Odesláno na ${to}: ${S.pick.length} ${S.pick.length===1?'položka':S.pick.length<5?'položky':'položek'} v jednom e-mailu (s PDF v příloze).`}
+      catch(err){msg.textContent='Odeslání se nepodařilo: '+(err.message||err)}
+      t.disabled=false;return}
+    if(t.closest('[data-bpdf]')){t.disabled=true;msg.textContent='Vytvářím PDF na Disku…';
+      try{const d=printMany(S.pick);const r=await api('makePdfHtml',d.name,d.html);msg.innerHTML=`PDF je uložené na Disku. <a href="${esc(r.url)}" target="_blank" rel="noopener">Otevřít ${esc(r.name)}</a>`;window.open(r.url,'_blank')}
+      catch(err){msg.textContent='PDF se nepodařilo vytvořit: '+(err.message||err)}
+      t.disabled=false}
+  });
+}
+async function doPdf(btn,type,id){
+  const msg=$('#share-msg');btn.disabled=true;msg.textContent='Vytvářím PDF na Disku…';
+  try{const d=printDoc(type,id,S.target[id]||null);const r=await api('makePdfHtml',d.name,d.html);msg.innerHTML=`PDF je uložené na Disku ve složce „Byliny s rozumem – PDF“. <a href="${esc(r.url)}" target="_blank" rel="noopener">Otevřít ${esc(r.name)}</a>`;window.open(r.url,'_blank')}
+  catch(err){msg.textContent='PDF se nepodařilo vytvořit: '+(err.message||err)}
+  btn.disabled=false;
+}
+async function doMail(btn,type,id){
+  const to=$('#mail-to').value.trim(),msg=$('#share-msg');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){msg.textContent='Zadejte platnou e-mailovou adresu.';$('#mail-to').focus();return}
+  btn.disabled=true;msg.textContent='Odesílám…';
+  try{const d=printDoc(type,id,S.target[id]||null);await api('sendHtmlEmail',to,d.name,d.html);msg.textContent=`Odesláno na ${to} (s PDF v příloze).`;$('#mail-to').value=''}
+  catch(err){msg.textContent='Odeslání se nepodařilo: '+(err.message||err)}
+  btn.disabled=false;
+}
+function confirmDelete(btn,type,id){
+  const x=S[type].get(id); if(!x)return;
+  const bar=btn.parentElement;
+  bar.innerHTML=`<span style="align-self:center">Opravdu smazat „${esc(x.name)}“?</span><button class="btn danger" data-really>Smazat</button><button class="btn ghost" data-cancel>Ponechat</button>`;
+  bar.querySelector('[data-cancel]').onclick=()=>renderSheet();
+  bar.querySelector('[data-really]').onclick=async()=>{
+    try{await api('deleteRecord',type,id);S[type].delete(id);S.sel=null;toast('Smazáno');render()}catch(err){toast('Smazání se nepodařilo: '+(err.message||err))}
+  };
+}
+
+/* ---------- formulář ---------- */
+function openForm(type,x,presetArea){
+  const v=x||{}, T=TYPES[type];
+  const f=(id,label,val,opt={})=>`<div class="fld"><label for="f-${id}">${label}</label>${opt.area?`<textarea id="f-${id}" placeholder="${esc(opt.ph||'')}">${esc(val)}</textarea>`:`<input id="f-${id}" value="${esc(val)}" placeholder="${esc(opt.ph||'')}" ${opt.list?`list="${opt.list}"`:''}>`}${opt.hint?`<span class="hint">${opt.hint}</span>`:''}</div>`;
+  const catSel=(label,list,val)=>`<div class="fld"><label for="f-category">${label}</label><input id="f-category" list="dl-cats" value="${esc(val||'')}" placeholder="Vyberte nebo napište"><datalist id="dl-cats">${list.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>`;
+  const pick=(id,label,map,sel)=>`<div class="fld"><label>${label}</label><div class="pick" data-pick="${id}"><input type="search" placeholder="Filtrovat…" aria-label="Filtrovat"><div class="chips">${[...map.values()].sort(byName).map(o=>`<button type="button" class="chip" data-id="${esc(o.id)}" aria-pressed="${arr(sel).includes(o.id)}">${esc(o.name)}</button>`).join('')||'<span class="hint">Zatím prázdné.</span>'}</div></div></div>`;
+  let body='';
+  if(type==='herbs'){
+    body=`<div class="row2">${f('name','Název',v.name,{ph:'Heřmánek pravý'})}${f('latin','Latinský název',v.latin,{ph:'Matricaria chamomilla'})}</div>
+    <div class="row2">${f('part','Používaná část',v.part,{ph:'květ, list, kořen…'})}${f('season','Doba sběru',v.season,{ph:'květen–srpen'})}</div>
+    ${pick('ailmentIds','Pomáhá při obtížích',S.ailments,v.ailmentIds)}
+    ${f('effects','Účinky',v.effects,{area:1})}${f('use','Jak se používá',v.use,{area:1})}${f('warning','Upozornění a kontraindikace',v.warning,{area:1})}
+    <details class="fld"><summary>Z knihy Fytoterapia (MUDr. Mika)</summary>${f('fytoUcinky','Účinky',v.fytoUcinky,{area:1})}${f('fytoPouziti','Použití a dávkování',v.fytoPouziti,{area:1})}${f('fytoUpozorneni','Upozornění',v.fytoUpozorneni,{area:1})}${f('fytoZdroj','Zdroj',v.fytoZdroj)}</details>
+    <details class="fld"><summary>Evropská monografie (EMA)</summary>${f('emaStatus','Stav monografie',v.emaStatus)}${f('emaIndications','Schválené použití',v.emaIndications,{area:1})}${f('emaDosage','Dávkování podle monografie',v.emaDosage,{area:1})}${f('emaSafety','Bezpečnost',v.emaSafety,{area:1})}${f('emaUrl','Odkaz na monografii',v.emaUrl)}</details>`;
+  } else if(type==='guides'){
+    body=`<div class="row2">${f('name','Název kapitoly',v.name)}${f('guide','Průvodce',v.guide||S.guide||'',{ph:'Perimenopauza'})}</div>
+    <div class="row2">${catSel('Oblast',AREA_NAMES,v.area||S.area)}${f('part','Část',v.part)}</div>
+    ${f('order','Pořadí',v.order,{hint:'Číslo, podle kterého se kapitoly řadí.'})}
+    ${f('text','Text kapitoly',v.text,{area:1,hint:'Nadpis: řádek začínající ###. Odrážka: pomlčka. Tabulka: řádky se svislými čarami |.'})}`;
+  } else if(type==='monographs'){
+    body=`<div class="row2">${f('name','Název byliny',v.name)}${f('latin','Latinský název',v.latin)}</div>
+    <div class="row2">${f('family','Čeleď',v.family)}${f('number','Číslo v monografii',v.number)}</div>
+    <div class="fld"><label for="f-herbId">Propojit s bylinou v databázi</label><select id="f-herbId"><option value="">— žádná —</option>${[...S.herbs.values()].sort(byName).map(o=>`<option value="${esc(o.id)}" ${o.id===v.herbId?'selected':''}>${esc(o.name)}</option>`).join('')}</select></div>
+    ${f('sections','Text monografie',secsToText(v.sections),{area:1,hint:'Každá kapitola začíná řádkem „### Název kapitoly“. Odrážky začínají pomlčkou, **tučně** a *kurzívou* jako ve Wordu přes hvězdičky.'})}`;
+  } else if(type==='ailments'){
+    body=`<div class="row2">${f('name','Název obtíže',v.name,{ph:'Pálení žáhy'})}${catSel('Oblast',AREA_NAMES,v.category||presetArea)}</div>
+    ${f('description','Popis',v.description,{area:1})}${f('doctor','Kdy k lékaři',v.doctor,{area:1,hint:'Varovné příznaky, kdy už bylinky nestačí.'})}
+    <p class="hint" style="color:var(--muted);font-size:13px">Byliny a recepty se k obtíži přiřazují u bylin a receptů.</p>`;
+  } else if(type==='leaflets'){
+    body=`<div class="row2">${f('name','Název letáku',v.name)}${catSel('Oblast',[...AREA_NAMES,'Obecné'],v.category)}</div>
+    ${f('summary','Krátké shrnutí',v.summary)}${f('text','Text',v.text,{area:1,hint:'Každý bod na nový řádek.'})}${f('url','Odkaz (např. PDF leták na Disku)',v.url,{ph:'https://drive.google.com/…'})}`;
+  } else {
+    const ings=arr(v.ingredients).length?v.ingredients:[{}];
+    body=`<div class="row2">${f('name','Název receptu',v.name,{ph:'Čaj na kašel'})}${catSel('Druh přípravku',TYPES.recipes.cats,v.category)}</div>
+    ${f('description','Popis (k čemu směs je)',v.description,{area:1})}
+    ${pick('ailmentIds','Na obtíže',S.ailments,v.ailmentIds)}
+    <div class="row2">${f('baseAmount','Recept je na množství',v.baseAmount??100,{hint:'Podle tohoto čísla se dávky přepočítávají.'})}${f('baseUnit','Jednotka',v.baseUnit||'g směsi',{ph:'g směsi, ml oleje…'})}</div>
+    <div class="fld"><label>Suroviny</label><span class="hint">Byliny z databáze se propojí samy, stačí vybrat název z nabídky.</span>
+      <div id="ings">${ings.map(ingRow).join('')}</div><div><button type="button" class="btn" id="add-ing">+ Surovina</button></div>
+      <datalist id="dl-herbs">${[...S.herbs.values()].sort(byName).map(h=>`<option value="${esc(h.name)}">`).join('')}</datalist></div>
+    <div class="row2">${f('temp','Teplota vody',v.temp,{ph:'100 °C'})}${f('time','Louhování / vaření',v.time,{ph:'10 min přikryté'})}</div>
+    ${f('yield','Dávka / výtěžek',v.yield,{ph:'3 g směsi na šálek (250 ml)'})}${f('steps','Postup',v.steps,{area:1,hint:'Každý krok na nový řádek.'})}${f('dosage','Dávkování',v.dosage,{area:1})}${f('warning','Upozornění',v.warning,{area:1})}${f('internal','Interní poznámka (netiskne se ani neposílá)',v.internal,{area:1,hint:'Ceny, prodejnost, původní název…'})}`;
+  }
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.innerHTML=`<form class="form" novalidate><h2>${x?'Upravit: '+esc(v.name):T.add}</h2>${body}<div class="formbar"><span class="err" id="f-err"></span><button type="button" class="btn ghost" data-close>Zrušit</button><button class="btn primary" type="submit">Uložit</button></div></form>`;
+  document.body.appendChild(ov);
+  const form=ov.querySelector('form'); ov.querySelector('#f-name').focus();
+  ov.addEventListener('click',e=>{
+    if(e.target===ov||e.target.closest('[data-close]')){ov.remove();return}
+    const c=e.target.closest('.pick .chip'); if(c){c.setAttribute('aria-pressed',c.getAttribute('aria-pressed')!=='true');return}
+    if(e.target.id==='add-ing'){ov.querySelector('#ings').insertAdjacentHTML('beforeend',ingRow({}));return}
+    if(e.target.closest('[data-rm]')){const rows=ov.querySelectorAll('.ingrow');if(rows.length>1)e.target.closest('.ingrow').remove();else rows[0].querySelectorAll('input').forEach(i=>i.value='')}
+  });
+  ov.addEventListener('input',e=>{const p=e.target.closest('.pick');if(p&&e.target.type==='search'){const q=norm(e.target.value);p.querySelectorAll('.chip').forEach(c=>c.hidden=!!q&&!norm(c.textContent).includes(q))}});
+  ov.addEventListener('keydown',e=>{if(e.key==='Escape')ov.remove()});
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const g=id=>(form.querySelector('#f-'+id)?.value||'').trim();
+    const data={name:g('name')};
+    if(!data.name){ov.querySelector('#f-err').textContent='Vyplňte název.';return}
+    const picked=id=>[...form.querySelectorAll(`[data-pick="${id}"] .chip[aria-pressed="true"]`)].map(c=>c.dataset.id);
+    if(type==='herbs')Object.assign(data,{latin:g('latin'),part:g('part'),season:g('season'),effects:g('effects'),use:g('use'),warning:g('warning'),ailmentIds:picked('ailmentIds'),emaStatus:g('emaStatus'),fytoUcinky:g('fytoUcinky'),fytoPouziti:g('fytoPouziti'),fytoUpozorneni:g('fytoUpozorneni'),fytoZdroj:g('fytoZdroj'),emaIndications:g('emaIndications'),emaDosage:g('emaDosage'),emaSafety:g('emaSafety'),emaUrl:g('emaUrl')});
+    else if(type==='ailments')Object.assign(data,{category:g('category'),description:g('description'),doctor:g('doctor')});
+    else if(type==='leaflets')Object.assign(data,{category:g('category'),summary:g('summary'),text:g('text'),url:g('url')});
+    else if(type==='guides')Object.assign(data,{guide:g('guide'),area:g('category'),part:g('part'),order:g('order'),text:form.querySelector('#f-text').value.trim()});
+    else if(type==='monographs')Object.assign(data,{latin:g('latin'),family:g('family'),number:g('number'),herbId:g('herbId'),sections:textToSecs(form.querySelector('#f-sections').value)});
+    else{
+      const byN=new Map([...S.herbs.values()].map(h=>[norm(h.name),h.id]));
+      const ingredients=[...form.querySelectorAll('.ingrow')].map(r=>{const [n,a,u]=r.querySelectorAll('input,select');const name=n.value.trim();if(!name)return null;
+        const amt=parseFloat(String(a.value).replace(',','.'));const o={name,unit:u.value};if(isFinite(amt))o.amount=amt;const hid=byN.get(norm(name));if(hid)o.herbId=hid;return o}).filter(Boolean);
+      const ba=parseFloat(g('baseAmount').replace(',','.'));
+      Object.assign(data,{category:g('category'),ailmentIds:picked('ailmentIds'),ingredients,baseAmount:isFinite(ba)?ba:0,baseUnit:g('baseUnit'),temp:g('temp'),time:g('time'),yield:g('yield'),steps:g('steps'),dosage:g('dosage'),warning:g('warning'),description:g('description'),internal:g('internal')});
+    }
+    const btn=form.querySelector('[type=submit]');btn.disabled=true;btn.textContent='Ukládám…';
+    try{
+      if(x)data.id=x.id;
+      const saved=await api('saveRecord',type,data);
+      S[type].set(saved.id,saved);
+      if(type==='ailments'){S.tab='areas';S.area=areaOf(saved)}else if(S.tab!=='areas'){S.tab=type}
+      S.sel={type,id:saved.id};ov.remove();toast('Uloženo do tabulky');render();
+    }catch(err){btn.disabled=false;btn.textContent='Uložit';ov.querySelector('#f-err').textContent='Uložení se nepodařilo ('+(err.message||err)+').'}
+  });
+}
+function ingRow(i){
+  return `<div class="ingrow"><input value="${esc(ingName(i))}" list="dl-herbs" placeholder="Bylina nebo surovina" aria-label="Surovina"><input value="${esc(i.amount??'')}" inputmode="decimal" placeholder="Množ." aria-label="Množství"><select aria-label="Jednotka">${[...new Set([...UNITS,i.unit].filter(Boolean))].map(u=>`<option ${u===(i.unit||'g')?'selected':''}>${esc(u)}</option>`).join('')}</select><button type="button" data-rm aria-label="Odebrat surovinu">×</button></div>`;
+}
+
+/* ---------- načtení dat z Google Tabulky ---------- */
+render();
+(async()=>{
+  const timer=setTimeout(()=>status('Načítání z tabulky trvá déle než obvykle…'),10000);
+  try{const all=await api('getAll');for(const t of Object.keys(TYPES))S[t]=new Map(arr(all[t]).map(r=>[r.id,r]));arr(all.settings).forEach(r=>{if(r&&r.id in BRAND&&r.value)BRAND[r.id]=String(r.value)});status('')}
+  catch(err){status('Tabulku se nepodařilo načíst: '+(err.message||err))}
+  S.loaded=true;clearTimeout(timer);render();
+})();
+</script>
+</body>
+</html>
