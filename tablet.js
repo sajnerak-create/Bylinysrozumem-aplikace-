@@ -10,6 +10,23 @@
   'use strict';
   var K_CFG = 'bsr-tablet', K_DATA = 'bsr-data', K_UI = 'bsr-ui';
 
+  /**
+   * Odkaz na tabulku zveřejněnou na webu (Soubor → Sdílet → Publikovat na webu → Celý dokument → .xlsx).
+   * Když ho tablet má uložený, tablet čte tabulku napřímo a nepotřebuje Apps Script ani klíč.
+   * E-mail pak připraví v poštovní aplikaci tabletu a PDF vytvoří přes tisk v tabletu.
+   */
+  var K_ZDROJ = 'bsr-zdroj';
+  // Odkaz se do tabletu uloží z adresy …#zdroj=<odkaz> nebo z úvodní obrazovky. V kódu (veřejném) není.
+  (function () {
+    var h = new URLSearchParams(location.hash.slice(1));
+    if (h.get('zdroj')) {
+      try { localStorage.setItem(K_ZDROJ, JSON.stringify(h.get('zdroj'))); } catch (e) {}
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  })();
+  var ZDROJ = (function () { try { return JSON.parse(localStorage.getItem(K_ZDROJ) || '""'); } catch (e) { return ''; } })();
+  var PRIMO = !!ZDROJ;
+
   /* ---------- ukládání v tabletu ---------- */
   function get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
   function put(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
@@ -41,9 +58,87 @@
     }).finally(function () { if (t) clearTimeout(t); });
   }
 
+  /* ---------- přímé čtení zveřejněné tabulky ---------- */
+  var TYPY = { 'Obtíže': 'ailments', 'Byliny': 'herbs', 'Recepty': 'recipes', 'Letáky': 'leaflets', 'Monografie Dr. Svátek': 'monographs' };
+  var JSON_SL = { ingredients: 1, sections: 1 };
+
+  function nactiXlsx() {
+    if (window.XLSX) return Promise.resolve();
+    return new Promise(function (res, rej) {
+      var sc = document.createElement('script');
+      sc.src = 'xlsx.mini.min.js'; sc.onload = function () { res(); };
+      sc.onerror = function () { rej(new Error('Nepodařilo se načíst čtečku tabulky.')); };
+      document.head.appendChild(sc);
+    });
+  }
+
+  /** Převede sešit na stejná data, jaká dává Apps Script (getAll). */
+  function zTabulky(wb) {
+    var out = {};
+    wb.SheetNames.forEach(function (n) {
+      var rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' });
+      if (!rows.length) return;
+      var head = rows[0].map(function (h) { return String(h == null ? '' : h).trim(); });
+      if (head[0] !== 'id') return;
+      var type = TYPY[n.trim()] || (head.indexOf('guide') >= 0 ? 'guides' : head.indexOf('value') >= 0 && head.length <= 4 ? 'settings' : n.trim());
+      rows = rows.slice(1).filter(function (r) { return r[0] !== '' && r[0] != null; });
+      var json = {};
+      head.forEach(function (c, i) {
+        if (!c) return;
+        var vals = rows.map(function (r) { return r[i]; }).filter(function (v) { return v !== '' && v != null; });
+        json[c] = JSON_SL[c] || (vals.length > 0 && vals.every(function (v) { return typeof v === 'string' && /^\s*[\[{]/.test(v); }));
+      });
+      out[type] = rows.map(function (r) {
+        var rec = {};
+        head.forEach(function (c, i) {
+          if (!c) return;
+          var v = r[i];
+          if (json[c]) { try { v = v ? JSON.parse(v) : []; } catch (e) { v = []; } }
+          else if (c === 'ailmentIds' || /Ids$/.test(c)) v = String(v == null ? '' : v).split(',').map(function (x) { return x.trim(); }).filter(String);
+          else if (c === 'baseAmount') v = Number(v) || 0;
+          else v = v == null ? '' : String(v);
+          rec[c] = v;
+        });
+        return rec;
+      });
+    });
+    return out;
+  }
+
+  function otisk(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(36) + '-' + str.length;
+  }
+
+  function stahnoutPrimo(ms) {
+    if (navigator.onLine === false) return Promise.reject(new Error('Tablet je bez internetu.'));
+    var ctl = window.AbortController ? new AbortController() : null;
+    var t = ctl && setTimeout(function () { ctl.abort(); }, ms || 90000);
+    var url = ZDROJ + (ZDROJ.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
+    return nactiXlsx().then(function () {
+      return fetch(url, { signal: ctl && ctl.signal, cache: 'no-store' });
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Tabulka není dostupná (' + r.status + '). Je zveřejněná na webu?');
+      return r.arrayBuffer();
+    }, function (e) {
+      throw new Error(e && e.name === 'AbortError' ? 'Tabulka neodpověděla včas.' : (e && e.message) || 'Nepodařilo se spojit s tabulkou.');
+    }).then(function (buf) {
+      var data = zTabulky(XLSX.read(new Uint8Array(buf), { type: 'array' }));
+      if (!data.herbs && !data.recipes) throw new Error('V tabulce nejsou listy Byliny a Recepty.');
+      return { verze: otisk(JSON.stringify(data)), data: data };
+    }).finally(function () { if (t) clearTimeout(t); });
+  }
+
   /** Stáhne data; vrátí {zmena:true/false, data}. Uloží je do tabletu. */
   function stahnout(ms) {
     var old = get(K_DATA);
+    if (PRIMO) return stahnoutPrimo(ms).then(function (j) {
+      var now = new Date().toISOString();
+      if (old && old.verze === j.verze) { old.kontrola = now; put(K_DATA, old); return { zmena: false, data: old.data }; }
+      if (!put(K_DATA, { verze: j.verze, data: j.data, stazeno: now, kontrola: now })) throw new Error('Data se do tabletu nevešla.');
+      return { zmena: true, data: j.data };
+    });
     return call('data', { verze: old && old.verze }, ms).then(function (j) {
       var now = new Date().toISOString();
       if (j.stejne && old) { old.kontrola = now; put(K_DATA, old); return { zmena: false, data: old.data }; }
@@ -69,9 +164,10 @@
     var stav = { text: '', nove: false };
     var nacist = function () {
         var old = get(K_DATA);
-        if (!cfg() || navigator.onLine === false) {
+        var ma = PRIMO || cfg();
+        if (!ma || navigator.onLine === false) {
           if (old) { stav.text = navigator.onLine === false ? 'bez internetu' : ''; return Promise.resolve(old.data); }
-          return Promise.reject(new Error(cfg() ? 'Data zatím nejsou stažená. Připojte tablet k internetu.' : 'Tablet není propojený s tabulkou.'));
+          return Promise.reject(new Error(ma ? 'Data zatím nejsou stažená. Připojte tablet k internetu.' : 'Tablet není propojený s tabulkou.'));
         }
         var p = stahnout(old ? 120000 : 180000);
         if (!old) return p.then(function (r) { return r.data; });
@@ -89,10 +185,33 @@
           });
         });
     };
+    var naText = function (html) {
+      var d = new DOMParser().parseFromString(String(html)
+        .replace(/<(style|script)[\s\S]*?<\/\1>/gi, '')
+        .replace(/<\/t[dh]>/gi, '  ').replace(/<br\s*\/?>/gi, '\n').replace(/<li[^>]*>/gi, '\n• ')
+        .replace(/<\/(p|div|h[1-6]|li|tr|table|ul|ol|section)>/gi, '\n'), 'text/html');
+      return (d.body ? d.body.textContent : '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    };
+    var mail = function (to, name, html) {
+      var a = document.createElement('a');
+      a.href = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(name) + '&body=' + encodeURIComponent(naText(html));
+      document.body.appendChild(a); a.click(); a.remove();
+      return Promise.resolve(true);
+    };
+    var tisk = function (name, html) {
+      var d = new DOMParser().parseFromString(String(html), 'text/html');
+      var css = [].map.call(d.querySelectorAll('style'), function (x) { return x.textContent; }).join('\n').replace(/\bbody\b/g, ':host');
+      var el = document.getElementById('bsr-print');
+      if (!el) { el = document.createElement('div'); el.id = 'bsr-print'; document.body.appendChild(el); el.attachShadow({ mode: 'open' }); }
+      el.shadowRoot.innerHTML = '<style>' + css + '</style>' + (d.body ? d.body.innerHTML : '');
+      var t0 = document.title; document.title = name;
+      setTimeout(function () { window.print(); document.title = t0; }, 50);
+      return Promise.resolve({ url: '#', name: name });
+    };
     var H = {
       getAll: function () { return nacist().then(function (r) { setTimeout(bar, 0); return r; }); },
-      sendHtmlEmail: function (to, name, html) { return call('email', { email: to, name: name, html: html }).then(function () { return true; }); },
-      makePdfHtml: function (name, html) { return call('pdf', { name: name, html: html }).then(function (j) { return { url: j.url, name: j.name }; }); },
+      sendHtmlEmail: function (to, name, html) { if (PRIMO) return mail(to, name, html); return call('email', { email: to, name: name, html: html }).then(function () { return true; }); },
+      makePdfHtml: function (name, html) { if (PRIMO) return tisk(name, html); return call('pdf', { name: name, html: html }).then(function (j) { return { url: j.url, name: j.name }; }); },
       saveRecord: function () { return Promise.reject(new Error('na tabletu se jen čte. Upravujte v tabulce nebo v aplikaci na počítači.')); },
       deleteRecord: function () { return Promise.reject(new Error('na tabletu se jen čte. Upravujte v tabulce nebo v aplikaci na počítači.')); }
     };
@@ -134,7 +253,7 @@
       el.innerHTML = '<span>' + esc(info) + '</span>' +
         (stav.nove ? '<button type="button" class="bsr-b bsr-p" data-bsr-show>Zobrazit nová data</button>' : '') +
         '<button type="button" class="bsr-b" data-bsr-upd>Aktualizovat</button>' +
-        '<button type="button" class="bsr-b" data-bsr-set aria-label="Nastavení tabletu" title="Nastavení tabletu">⚙</button>';
+        (PRIMO ? '' : '<button type="button" class="bsr-b" data-bsr-set aria-label="Nastavení tabletu" title="Nastavení tabletu">⚙</button>');
     };
     var aktualizovat = function (btn) {
       if (navigator.onLine === false) { stav.text = ''; bar(); alert('Tablet je bez internetu. Data se aktualizují, až bude připojený.'); return; }
@@ -189,36 +308,49 @@
     '#bsr-bar span{margin-right:auto}' +
     '.bsr-b{border:1px solid var(--line,#cfe3d5);background:#fff;color:var(--ink,#1d5c34);border-radius:999px;padding:5px 12px;font:inherit;cursor:pointer}' +
     '.bsr-p{background:var(--accent,#2e7d46);color:#fff;border-color:transparent}' +
-    '.bsr-l{display:block;margin:12px 0}.bsr-l input{display:block;width:100%;margin-top:4px}</style>';
+    '.bsr-l{display:block;margin:12px 0}.bsr-l input{display:block;width:100%;margin-top:4px}' +
+    '@media screen{#bsr-print{display:none}}@media print{body>*:not(#bsr-print){display:none!important}#bsr-print{display:block}}</style>';
+
+  /* Texty u e-mailu a PDF, když je posílá tablet sám (bez Apps Scriptu). */
+  var TEXTY = [
+    ['PDF je uložené na Disku ve složce „Byliny s rozumem – PDF“. <a href="${esc(r.url)}" target="_blank" rel="noopener">Otevřít ${esc(r.name)}</a>', 'Otevřel se tisk. Vyberte tiskárnu, nebo „Uložit jako PDF“.'],
+    ['PDF je uložené na Disku. <a href="${esc(r.url)}" target="_blank" rel="noopener">Otevřít ${esc(r.name)}</a>', 'Otevřel se tisk. Vyberte tiskárnu, nebo „Uložit jako PDF“.'],
+    [";window.open(r.url,'_blank')", ''],
+    ['Vytvářím PDF na Disku…', 'Připravuji tisk…'],
+    ['Odesláno na ${to} (s PDF v příloze).', 'E-mail pro ${to} je připravený v poštovní aplikaci, stačí ho odeslat.'],
+    ['Odesláno na ${to}: ', 'E-mail pro ${to} je připravený v poštovní aplikaci: '],
+    [' v jednom e-mailu (s PDF v příloze).', '. Stačí ho odeslat.'],
+    ['Odesílám…', 'Otevírám poštu…']
+  ];
 
   function spustit(html) {
     html = html.replace(/<base[^>]*>/i, '');
+    if (PRIMO) TEXTY.forEach(function (t) { html = html.split(t[0]).join(t[1]); });
     html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, function (m) { return m + PRIDAT; }) : PRIDAT + html;
     document.open(); document.write(html); document.close();
   }
 
   function uvod(chyba) {
-    var c = cfg() || {};
     var box = document.getElementById('boot');
     box.innerHTML = '<img src="icon-192.png" alt=""><h1>Byliny s rozumem</h1>' +
-      '<p class="muted">Propojte tablet s vaší Google Tabulkou. Nejjednodušší je otevřít na tabletu odkaz z e-mailu ' +
-      '„Byliny s rozumem – nastavení tabletu“, který si pošlete z tabulky (menu Bylinky → Tablet: poslat odkaz pro nastavení). ' +
-      'Nebo údaje vložte sem.</p>' + (chyba ? '<p class="err">' + esc(chyba) + '</p>' : '') +
-      '<form><label for="u">Adresa tabletové implementace</label><input id="u" name="url" value="' + esc(c.url || '') + '" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">' +
-      '<label for="k">Klíč tabletu</label><input id="k" name="klic" value="' + esc(c.klic || '') + '" autocomplete="off">' +
-      '<button>Propojit a stáhnout data</button></form>';
+      '<p class="muted">Vložte odkaz na vaši tabulku zveřejněnou na webu ' +
+      '(v tabulce Soubor → Sdílet → Publikovat na webu → Celý dokument → Microsoft Excel). Odkaz končí <b>output=xlsx</b>.</p>' +
+      (chyba ? '<p class="err">' + esc(chyba) + '</p>' : '') +
+      '<form><label for="z">Odkaz na tabulku</label><input id="z" name="zdroj" value="' + esc(ZDROJ) + '" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=xlsx" autocomplete="off">' +
+      '<button>Stáhnout data</button></form>';
     box.querySelector('form').addEventListener('submit', function (e) {
       e.preventDefault();
-      var f = e.target, b = f.querySelector('button');
-      put(K_CFG, { url: f.url.value.trim(), klic: f.klic.value.trim() });
-      b.disabled = true; b.textContent = 'Stahuji data… (může to trvat i minutu)';
+      var z = e.target.zdroj.value.trim();
+      if (!/^https:\/\/docs\.google\.com\/spreadsheets\/.+/.test(z)) { uvod('Tohle nevypadá jako odkaz na Google Tabulku.'); return; }
+      put(K_ZDROJ, z); ZDROJ = z; PRIMO = true;
+      var b = e.target.querySelector('button'); b.disabled = true; b.textContent = 'Stahuji data…';
       stahnout(180000).then(start, function (err) { uvod(err.message); });
     });
   }
 
   function start() {
-    if (!get(K_DATA) && !cfg()) { uvod(); return; }
-    var ui = get(K_UI);
+    if (!PRIMO && !cfg()) { uvod(); return; }
+    var ui = PRIMO ? null : get(K_UI);
     if (ui) { spustit(ui); return; }
     fetch('aplikace.html').then(function (r) { return r.text(); }).then(spustit, function () {
       uvod('Aplikaci se nepodařilo načíst. Připojte tablet k internetu.');
