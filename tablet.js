@@ -109,16 +109,38 @@
       return (row.c || []).map(function (c) { return c && c.v != null ? c.v : ''; });
     })) };
   }
-  /* Cesta 2: list po listu přes fetch (Google u tohoto rozhraní stahování z jiných stránek povoluje). */
+  /** Rozebere CSV (uvozovky, čárky a zalomení řádků uvnitř buněk). */
+  function zCsv(txt) {
+    var rows = [], row = [], cell = '', q = false;
+    for (var i = 0; i < txt.length; i++) {
+      var ch = txt[i];
+      if (q) {
+        if (ch === '"') { if (txt[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && txt[i + 1] === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+  /* Cesta 2: list po listu jako CSV přes fetch (Google u tohoto rozhraní stahování z jiných stránek povoluje). */
   function gvizFetch(name, ms) {
     var ctl = window.AbortController ? new AbortController() : null;
     var t = ctl && setTimeout(function () { ctl.abort(); }, ms || 60000);
-    return fetch(gvizUrl(name, '&tqx=out:json'), { signal: ctl && ctl.signal, cache: 'no-store', credentials: 'omit' })
-      .then(function (r) { return r.text(); })
-      .then(function (txt) {
-        var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-        if (a < 0 || b < a) throw new Error('Tabulka není sdílená pro „Kdokoli, kdo má odkaz“.');
-        return zGviz(name, JSON.parse(txt.slice(a, b + 1)));
+    return fetch(gvizUrl(name, '&tqx=out:csv'), { signal: ctl && ctl.signal, cache: 'no-store', credentials: 'omit' })
+      .then(function (r) {
+        if (!r.ok) { if (r.status === 400 || r.status === 404) return null; throw new Error('Tabulka odpověděla chybou ' + r.status + '.'); }
+        return r.text().then(function (txt) {
+          if (/^\s*</.test(txt)) throw new Error('Tabulka není sdílená pro „Kdokoli, kdo má odkaz“.');
+          var rows = zCsv(txt);
+          if (!rows.length) return null;
+          rows[0] = rows[0].map(function (h) { return h.trim(); });
+          return { name: name, rows: rows };
+        });
       })
       .finally(function () { if (t) clearTimeout(t); });
   }
@@ -155,7 +177,7 @@
           var v = r[i];
           if (json[c]) { try { v = v ? JSON.parse(v) : []; } catch (e) { v = []; } }
           else if (c === 'ailmentIds' || /Ids$/.test(c)) v = String(v == null ? '' : v).split(',').map(function (x) { return x.trim(); }).filter(String);
-          else if (c === 'baseAmount') v = Number(v) || 0;
+          else if (c === 'baseAmount') v = typeof v === 'number' ? v : Number(String(v).replace(/\s/g, '').replace(',', '.')) || 0;
           else v = v == null ? '' : String(v);
           rec[c] = v;
         });
